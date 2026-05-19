@@ -1,0 +1,7 @@
+# Files copied into the MicroPython virtual filesystem so `import` works.
+[files]
+"./storage.py" = "./storage.py"
+"./ui.py" = "./ui.py"
+"./splitcore/__init__.py" = "./splitcore/__init__.py"
+"./splitcore/model.py" = "./splitcore/model.py"
+"./splitcore/calc.py" = "./splitcore/calc.py"

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vvsplit — bill splitter</title>
+
+  <!-- Pinned PyScript release. To upgrade, bump the version in both URLs
+       (see https://pyscript.net for the latest release). -->
+  <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
+  <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header class="masthead">
+      <div class="wordmark">vvsplit</div>
+      <p class="tagline">Split the bill, line&nbsp;by&nbsp;line. Kept in your browser, nowhere&nbsp;else.</p>
+    </header>
+
+    <section class="sheet" aria-labelledby="h-people">
+      <div class="sheet-head">
+        <h2 id="h-people">People</h2>
+        <span class="sheet-num">01</span>
+      </div>
+      <div class="field-row">
+        <input id="person-name" type="text" placeholder="Add a name…" autocomplete="off">
+        <button id="add-person" class="btn">Add</button>
+      </div>
+      <p id="people-error" class="error" role="alert"></p>
+      <ul id="people-list"></ul>
+    </section>
+
+    <section class="sheet" aria-labelledby="h-item">
+      <div class="sheet-head">
+        <h2 id="h-item">Add item</h2>
+        <span class="sheet-num">02</span>
+      </div>
+
+      <div class="field-row">
+        <input id="item-desc" type="text" placeholder="What was it? (e.g. Dinner)" autocomplete="off">
+        <input id="item-amount" class="amount-input" type="text" inputmode="decimal" placeholder="0.00">
+      </div>
+
+      <label class="inline-field">
+        <span class="inline-label">Paid by</span>
+        <select id="payer-select"></select>
+      </label>
+
+      <div class="toggle" role="radiogroup" aria-label="Split mode">
+        <label class="toggle-opt">
+          <input type="radio" name="split-mode" id="mode-equal" checked>
+          <span>Equally</span>
+        </label>
+        <label class="toggle-opt">
+          <input type="radio" name="split-mode" id="mode-uneven">
+          <span>Uneven</span>
+        </label>
+      </div>
+
+      <p class="hint">Who shares this item</p>
+      <div id="participants"></div>
+
+      <button id="add-item" class="btn btn-accent">Add item</button>
+      <p id="item-error" class="error" role="alert"></p>
+    </section>
+
+    <section class="sheet" aria-labelledby="h-items">
+      <div class="sheet-head">
+        <h2 id="h-items">Items</h2>
+        <span class="sheet-num">03</span>
+      </div>
+      <ul id="items-list"></ul>
+    </section>
+
+    <section class="sheet sheet-receipt" aria-labelledby="h-results">
+      <div class="sheet-head">
+        <h2 id="h-results">Results</h2>
+        <span class="sheet-num">04</span>
+      </div>
+      <div id="results"></div>
+    </section>
+
+    <footer class="colophon">vvsplit · Python in the browser, no server</footer>
+  </main>
+
+  <script type="mpy" src="./main.py" config="./pyscript.toml"></script>
+</body>
+</html>

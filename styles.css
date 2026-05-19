@@ -1,0 +1,324 @@
+/* vvsplit — "paper ledger" aesthetic.
+   Warm cream stock, near-black ink, a single vermilion accent.
+   Fraunces (display) · Hanken Grotesk (UI) · DM Mono (figures). */
+
+:root {
+  --paper:   #f3efe6;
+  --paper-2: #ece6d8;
+  --ink:     #20201c;
+  --ink-soft:#6f6a5f;
+  --accent:  #c8462b;
+  --rule:    rgba(32, 32, 28, 0.18);
+  --rule-soft: rgba(32, 32, 28, 0.10);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: "Hanken Grotesk", sans-serif;
+  color: var(--ink);
+  background-color: var(--paper);
+  /* faint paper grain */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  line-height: 1.55;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 6vw, 4.5rem) clamp(1.1rem, 5vw, 2rem) 4rem;
+}
+
+/* ---------- masthead ---------- */
+
+.masthead {
+  text-align: center;
+  margin-bottom: 3.25rem;
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.wordmark {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: clamp(2.6rem, 11vw, 4.25rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-optical-sizing: auto;
+}
+
+.wordmark::after {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  height: 2px;
+  margin: 1rem auto 0;
+  background: var(--accent);
+}
+
+.tagline {
+  margin-top: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  max-width: 24rem;
+  margin-inline: auto;
+}
+
+/* ---------- sheets (sections) ---------- */
+
+.sheet {
+  border-top: 1px solid var(--rule);
+  padding: 2rem 0;
+  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.sheet:nth-of-type(2) { animation-delay: 0.06s; }
+.sheet:nth-of-type(3) { animation-delay: 0.12s; }
+.sheet:nth-of-type(4) { animation-delay: 0.18s; }
+
+.sheet-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.4rem;
+}
+
+.sheet-head h2 {
+  font-family: "Fraunces", serif;
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.sheet-num {
+  font-family: "DM Mono", monospace;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+}
+
+/* ---------- form controls ---------- */
+
+.field-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+input[type="text"] {
+  flex: 1 1 10rem;
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid var(--rule);
+  padding: 0.55rem 0.1rem;
+  transition: border-color 0.2s ease;
+}
+input[type="text"]::placeholder { color: var(--ink-soft); opacity: 0.7; }
+input[type="text"]:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.amount-input {
+  flex: 0 1 7rem;
+  font-family: "DM Mono", monospace;
+  text-align: right;
+}
+
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 1.4rem 0 0.4rem;
+}
+.inline-label { color: var(--ink-soft); font-size: 0.9rem; }
+
+select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.45rem 0.6rem;
+}
+select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* segmented toggle */
+.toggle {
+  display: inline-flex;
+  margin: 1.3rem 0 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.toggle-opt { position: relative; }
+.toggle-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.toggle-opt span {
+  display: block;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.toggle-opt + .toggle-opt span { border-left: 1px solid var(--rule); }
+.toggle-opt input:checked + span {
+  background: var(--ink);
+  color: var(--paper);
+}
+.toggle-opt input:focus-visible + span { outline: 2px solid var(--accent); }
+
+.hint {
+  margin: 1.5rem 0 0.6rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+/* participant rows (built by ui.py) */
+#participants { display: flex; flex-direction: column; gap: 0.1rem; }
+.participant {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.participant input[type="checkbox"] {
+  width: 1rem; height: 1rem;
+  accent-color: var(--accent);
+}
+.participant span { flex: 1; }
+.p-weight {
+  width: 4.5rem;
+  font-family: "DM Mono", monospace;
+  font-size: 0.9rem;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.25rem 0.4rem;
+  text-align: right;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.55rem 1.2rem;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 2px;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.08s ease;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.btn-accent {
+  margin-top: 1.7rem;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+}
+.btn-accent:hover { background: #a93821; border-color: #a93821; color: var(--paper); }
+
+button.link {
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  padding: 0.2rem 0.1rem;
+  transition: color 0.16s ease;
+}
+button.link:hover { color: var(--accent); }
+button.link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- lists & ledgers (built by ui.py) ---------- */
+
+ul { list-style: none; }
+
+li.entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+li.entry .label { color: var(--ink); }
+#people-list .entry .label,
+#items-list .entry .label { flex: 1; }
+#items-list .entry .label { color: var(--ink-soft); font-size: 0.92rem; }
+
+#items-list .entry .amount,
+.ledger .entry .amount {
+  font-family: "DM Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* receipt-style dotted leaders in the results ledgers */
+.ledger .entry { gap: 0.4rem; }
+.ledger .entry .label { order: 0; white-space: nowrap; }
+.ledger .entry::before {
+  content: "";
+  order: 1;
+  flex: 1;
+  align-self: center;
+  border-bottom: 1px dotted var(--rule);
+}
+.ledger .entry .amount { order: 2; }
+
+#results h3 {
+  font-family: "Hanken Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-soft);
+  margin: 1.6rem 0 0.5rem;
+}
+#results h3:first-child { margin-top: 0; }
+
+/* the final "settle up" block reads like a stamped total */
+.sheet-receipt .ledger:last-of-type .entry .amount { color: var(--accent); }
+
+.muted { color: var(--ink-soft); font-style: italic; font-size: 0.92rem; border: none !important; }
+
+.error {
+  color: var(--accent);
+  font-size: 0.85rem;
+  min-height: 1.2em;
+  margin-top: 0.6rem;
+}
+
+.colophon {
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--rule);
+  text-align: center;
+  font-family: "DM Mono", monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+}
+
+/* ---------- motion ---------- */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
