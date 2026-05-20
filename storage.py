@@ -17,6 +17,12 @@ def load():
         return AppState.from_dict(json.loads(raw))
     except Exception as e:  # corrupt data: surface it, don't silently mask
         window.console.warn("vvsplit: ignoring corrupt saved state: " + str(e))
+        # Stash the bad blob so the next save() doesn't destroy data the
+        # user might still recover by hand.
+        try:
+            window.localStorage.setItem(KEY + ":corrupt", raw)
+        except Exception:
+            pass
         return AppState()
 
 

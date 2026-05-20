@@ -1,15 +1,70 @@
-/* vvsplit — "paper ledger" aesthetic.
-   Warm cream stock, near-black ink, a single vermilion accent.
-   Fraunces (display) · Hanken Grotesk (UI) · DM Mono (figures). */
+/* vvsplit — Material 3 (Material You).
+   Tonal color roles, elevation, state layers, filled fields, segmented
+   buttons. Green seed (finance). Roboto + Roboto Mono. Light + dark. */
 
 :root {
-  --paper:   #f3efe6;
-  --paper-2: #ece6d8;
-  --ink:     #20201c;
-  --ink-soft:#6f6a5f;
-  --accent:  #c8462b;
-  --rule:    rgba(32, 32, 28, 0.18);
-  --rule-soft: rgba(32, 32, 28, 0.10);
+  /* ---- M3 color roles: light, green seed ---- */
+  --primary: #1f6e43;
+  --on-primary: #ffffff;
+  --primary-container: #a6f2c4;
+  --on-primary-container: #00210f;
+  --secondary-container: #d3e8d8;
+  --on-secondary-container: #101f15;
+  --tertiary: #3a6470;
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+
+  --surface: #f6fbf4;
+  --surface-container-low: #f0f6ee;
+  --surface-container: #eaf1e8;
+  --surface-container-high: #e4ebe2;
+  --surface-container-highest: #dee5dd;
+  --on-surface: #181d19;
+  --on-surface-variant: #404943;
+  --outline: #707972;
+  --outline-variant: #c0c9c0;
+
+  /* ---- M3 elevation ---- */
+  --elev-1: 0 1px 2px rgba(0,0,0,.30), 0 1px 3px 1px rgba(0,0,0,.15);
+  --elev-2: 0 1px 2px rgba(0,0,0,.30), 0 2px 6px 2px rgba(0,0,0,.15);
+  --elev-3: 0 1px 3px rgba(0,0,0,.30), 0 4px 8px 3px rgba(0,0,0,.15);
+
+  /* ---- M3 shape ---- */
+  --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --r-xl: 28px; --r-full: 999px;
+
+  /* ---- focus indicator ---- */
+  --focus-ring: 3px solid var(--primary);
+
+  /* ---- M3 motion ---- */
+  --ease-emph: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #8bd6a9;
+    --on-primary: #00391f;
+    --primary-container: #00522f;
+    --on-primary-container: #a6f2c4;
+    --secondary-container: #354b3c;
+    --on-secondary-container: #d0e8d5;
+    --tertiary: #a4cdda;
+    --error: #ffb4ab;
+    --on-error: #690005;
+    --error-container: #93000a;
+
+    --surface: #101510;
+    --surface-container-low: #181d18;
+    --surface-container: #1c211c;
+    --surface-container-high: #262b26;
+    --surface-container-highest: #313630;
+    --on-surface: #dfe4dd;
+    --on-surface-variant: #c0c9c0;
+    --outline: #8a938b;
+    --outline-variant: #404943;
+  }
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,308 +72,479 @@
 html { -webkit-text-size-adjust: 100%; }
 
 body {
-  font-family: "Hanken Grotesk", sans-serif;
-  color: var(--ink);
-  background-color: var(--paper);
-  /* faint paper grain */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  line-height: 1.55;
-  font-size: 16px;
+  font-family: "Roboto", system-ui, sans-serif;
+  color: var(--on-surface);
+  background-color: var(--surface);
+  -webkit-tap-highlight-color: transparent;
+  background-image:
+    radial-gradient(120% 60% at 50% -10%,
+      color-mix(in srgb, var(--primary) 9%, transparent), transparent 70%);
+  /* No background-attachment: fixed — it triggers mobile scroll repaint
+     for zero visual gain here. min-height keeps the wash covering the view. */
+  min-height: 100vh;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- top app bar ---------- */
+
+.m3-topbar { padding: clamp(1.5rem, 5vw, 3rem) 1rem 0.5rem; }
+.m3-topbar-inner {
+  max-width: 40rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.m3-topbar-glyph {
+  flex: none;
+  width: 48px; height: 48px;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  font-size: 1.5rem; font-weight: 500;
+}
+.m3-headline {
+  font-size: clamp(1.75rem, 6vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: var(--on-surface);
+}
+.m3-supporting {
+  font-size: 0.875rem;
+  color: var(--on-surface-variant);
 }
 
 main {
   max-width: 40rem;
   margin: 0 auto;
-  padding: clamp(2rem, 6vw, 4.5rem) clamp(1.1rem, 5vw, 2rem) 4rem;
+  padding: 0.5rem
+           calc(clamp(0.75rem, 4vw, 1rem) + env(safe-area-inset-right))
+           calc(3rem + env(safe-area-inset-bottom))
+           calc(clamp(0.75rem, 4vw, 1rem) + env(safe-area-inset-left));
 }
 
-/* ---------- masthead ---------- */
+/* ---------- cards ---------- */
 
-.masthead {
-  text-align: center;
-  margin-bottom: 3.25rem;
-  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+.m3-card {
+  background: var(--surface-container-low);
+  border-radius: var(--r-xl);
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: var(--elev-1);
+  animation: m3-rise 0.5s var(--ease-decel) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
 }
+.m3-card-accent { box-shadow: var(--elev-2); }
 
-.wordmark {
-  font-family: "Fraunces", serif;
-  font-weight: 600;
-  font-size: clamp(2.6rem, 11vw, 4.25rem);
-  letter-spacing: -0.03em;
-  line-height: 1;
-  font-optical-sizing: auto;
-}
-
-.wordmark::after {
-  content: "";
-  display: block;
-  width: 2.25rem;
-  height: 2px;
-  margin: 1rem auto 0;
-  background: var(--accent);
-}
-
-.tagline {
-  margin-top: 1rem;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
-  max-width: 24rem;
-  margin-inline: auto;
-}
-
-/* ---------- sheets (sections) ---------- */
-
-.sheet {
-  border-top: 1px solid var(--rule);
-  padding: 2rem 0;
-  animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.sheet:nth-of-type(2) { animation-delay: 0.06s; }
-.sheet:nth-of-type(3) { animation-delay: 0.12s; }
-.sheet:nth-of-type(4) { animation-delay: 0.18s; }
-
-.sheet-head {
+.m3-card-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 1.4rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
-
-.sheet-head h2 {
-  font-family: "Fraunces", serif;
-  font-weight: 600;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
+.m3-num {
+  width: 28px; height: 28px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: var(--r-full);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  font-size: 0.8rem; font-weight: 500;
 }
+.m3-title { font-size: 1.375rem; font-weight: 500; letter-spacing: 0; }
+.m3-card-accent .m3-title { color: var(--primary); }
 
-.sheet-num {
-  font-family: "DM Mono", monospace;
-  font-size: 0.8rem;
-  color: var(--ink-soft);
-  letter-spacing: 0.12em;
-}
+/* ---------- filled text fields ---------- */
 
-/* ---------- form controls ---------- */
-
-.field-row {
+.m3-row {
   display: flex;
   gap: 0.75rem;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: flex-start;
 }
 
-input[type="text"] {
-  flex: 1 1 10rem;
+.m3-field { position: relative; flex: 1 1 12rem; }
+.m3-field input,
+.m3-field select {
+  width: 100%;
+  height: 56px;
   font: inherit;
-  color: var(--ink);
-  background: transparent;
+  color: var(--on-surface);
+  background: var(--surface-container-highest);
   border: none;
-  border-bottom: 1.5px solid var(--rule);
-  padding: 0.55rem 0.1rem;
-  transition: border-color 0.2s ease;
-}
-input[type="text"]::placeholder { color: var(--ink-soft); opacity: 0.7; }
-input[type="text"]:focus {
+  border-bottom: 1px solid var(--on-surface-variant);
+  border-radius: var(--r-xs) var(--r-xs) 0 0;
+  padding: 24px 16px 7px;
   outline: none;
-  border-bottom-color: var(--accent);
+  transition: border-color 0.15s var(--ease-emph),
+              background 0.15s var(--ease-emph);
+}
+.m3-field input:hover,
+.m3-field select:hover { background: var(--surface-container-high); }
+.m3-field input:focus,
+.m3-field select:focus {
+  border-bottom: 2px solid var(--primary);
+  padding-bottom: 6px;
+}
+.m3-field label {
+  position: absolute;
+  left: 16px; top: 17px;
+  color: var(--on-surface-variant);
+  pointer-events: none;
+  transition: transform 0.15s var(--ease-emph),
+              color 0.15s var(--ease-emph), top 0.15s var(--ease-emph);
+}
+.m3-field input:focus + label,
+.m3-field input:not(:placeholder-shown) + label {
+  top: 8px;
+  font-size: 0.75rem;
+}
+.m3-field input:focus + label { color: var(--primary); }
+
+.m3-field-amount input { padding-left: 28px; }
+.m3-prefix {
+  position: absolute;
+  left: 16px; top: 24px;
+  color: var(--on-surface-variant);
+  opacity: 0;
+  transition: opacity 0.15s var(--ease-emph);
+}
+.m3-field-amount input:focus ~ .m3-prefix,
+.m3-field-amount input:not(:placeholder-shown) ~ .m3-prefix { opacity: 1; }
+
+.m3-field-select { flex-basis: 100%; margin-top: 1.5rem; }
+.m3-field-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 64px;
+  line-height: 1.5;
+  padding: 32px 16px 8px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--on-surface-variant) 50%),
+    linear-gradient(135deg, var(--on-surface-variant) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 36px, calc(100% - 14px) 36px;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+.m3-field-label-static {
+  position: absolute;
+  left: 16px; top: 10px;
+  font-size: 0.75rem;
+  color: var(--on-surface-variant);
+  pointer-events: none;
 }
 
-.amount-input {
-  flex: 0 1 7rem;
-  font-family: "DM Mono", monospace;
-  text-align: right;
-}
+/* ---------- segmented buttons ---------- */
 
-.inline-field {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  margin: 1.4rem 0 0.4rem;
-}
-.inline-label { color: var(--ink-soft); font-size: 0.9rem; }
-
-select {
-  font: inherit;
-  color: var(--ink);
-  background: var(--paper-2);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  padding: 0.45rem 0.6rem;
-}
-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* segmented toggle */
-.toggle {
+.m3-segmented {
   display: inline-flex;
-  margin: 1.3rem 0 0.4rem;
-  border: 1px solid var(--rule);
-  border-radius: 2px;
+  margin: 1.5rem 0 0.5rem;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-full);
   overflow: hidden;
 }
-.toggle-opt { position: relative; }
-.toggle-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
-.toggle-opt span {
-  display: block;
-  padding: 0.45rem 1.1rem;
-  font-size: 0.9rem;
-  color: var(--ink-soft);
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.toggle-opt + .toggle-opt span { border-left: 1px solid var(--rule); }
-.toggle-opt input:checked + span {
-  background: var(--ink);
-  color: var(--paper);
-}
-.toggle-opt input:focus-visible + span { outline: 2px solid var(--accent); }
-
-.hint {
-  margin: 1.5rem 0 0.6rem;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-
-/* participant rows (built by ui.py) */
-#participants { display: flex; flex-direction: column; gap: 0.1rem; }
-.participant {
+.m3-seg { position: relative; }
+.m3-seg input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.m3-seg span {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--rule-soft);
+  gap: 0.25rem;
+  padding: 0.55rem 1.25rem;
+  font-size: 0.875rem; font-weight: 500;
+  color: var(--on-surface);
+  transition: background 0.15s var(--ease-emph);
 }
-.participant input[type="checkbox"] {
-  width: 1rem; height: 1rem;
-  accent-color: var(--accent);
+.m3-seg + .m3-seg span { border-left: 1px solid var(--outline); }
+.m3-seg input:hover + span {
+  background: color-mix(in srgb, var(--on-surface) 8%, transparent);
 }
-.participant span { flex: 1; }
-.p-weight {
-  width: 4.5rem;
-  font-family: "DM Mono", monospace;
-  font-size: 0.9rem;
-  background: var(--paper-2);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  padding: 0.25rem 0.4rem;
-  text-align: right;
+.m3-seg input:checked + span {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
 }
+.m3-check {
+  width: 0; height: 11px;
+  border: solid var(--on-secondary-container);
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg) translateY(-2px);
+  transition: width 0.15s var(--ease-emph);
+}
+.m3-seg input:checked + span .m3-check { width: 13px; margin-right: 2px; }
+.m3-seg input:focus-visible + span { outline: var(--focus-ring); }
 
 /* ---------- buttons ---------- */
 
-.btn {
-  font: inherit;
-  font-weight: 500;
+.m3-btn {
+  position: relative;
+  overflow: hidden;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--r-full);
+  font: 500 0.875rem "Roboto", sans-serif;
   cursor: pointer;
-  padding: 0.55rem 1.2rem;
-  border: 1px solid var(--ink);
-  background: transparent;
-  color: var(--ink);
-  border-radius: 2px;
-  transition: background 0.18s ease, color 0.18s ease, transform 0.08s ease;
+  transition: box-shadow 0.15s var(--ease-emph);
+  isolation: isolate;
 }
-.btn:hover { background: var(--ink); color: var(--paper); }
-.btn:active { transform: translateY(1px); }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.btn-accent {
-  margin-top: 1.7rem;
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--paper);
+.m3-btn::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease-emph);
 }
-.btn-accent:hover { background: #a93821; border-color: #a93821; color: var(--paper); }
+.m3-btn:hover::before { opacity: 0.08; }
+.m3-btn:focus-visible::before { opacity: 0.12; }
+.m3-btn:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.m3-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0);
+}
+.m3-btn:active::after {
+  opacity: 0.18;
+  transform: translate(-50%, -50%) scale(28);
+  transition: transform 0.4s var(--ease-decel), opacity 0.4s var(--ease-emph);
+}
+.m3-btn-filled { background: var(--primary); color: var(--on-primary); }
+.m3-btn-filled:hover { box-shadow: var(--elev-1); }
+.m3-btn-tonal {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  align-self: stretch;
+}
+.m3-btn-filled { margin-top: 1.5rem; min-width: 8rem; height: 48px; }
 
+/* text buttons generated by ui.py (remove / delete) */
 button.link {
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  font: 500 0.875rem "Roboto", sans-serif;
+  color: var(--primary);
   background: none;
   border: none;
-  color: var(--ink-soft);
-  padding: 0.2rem 0.1rem;
-  transition: color 0.16s ease;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  flex: none;
 }
-button.link:hover { color: var(--accent); }
-button.link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.link::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--primary);
+  opacity: 0;
+  border-radius: inherit;
+  transition: opacity 0.15s var(--ease-emph);
+}
+button.link:hover::before { opacity: 0.08; }
+button.link:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 
-/* ---------- lists & ledgers (built by ui.py) ---------- */
+/* ---------- lists (built by ui.py) ---------- */
 
-ul { list-style: none; }
+.m3-list { list-style: none; margin-top: 0.25rem; }
 
 li.entry {
+  position: relative;
   display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--rule-soft);
+  align-items: center;
+  gap: 1rem;
+  min-height: 56px;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r-md);
+  border-bottom: 1px solid var(--outline-variant);
 }
-li.entry .label { color: var(--ink); }
-#people-list .entry .label,
-#items-list .entry .label { flex: 1; }
-#items-list .entry .label { color: var(--ink-soft); font-size: 0.92rem; }
+li.entry:last-child { border-bottom: none; }
+li.entry::before {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--on-surface);
+  opacity: 0;
+  border-radius: inherit;
+  transition: opacity 0.15s var(--ease-emph);
+  pointer-events: none;
+}
+li.entry:hover::before { opacity: 0.05; }
 
+li.entry .label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--on-surface);
+}
+li.entry .amount { flex: none; white-space: nowrap; }
+#items-list .entry .label {
+  font-size: 0.875rem;
+  color: var(--on-surface-variant);
+}
 #items-list .entry .amount,
 .ledger .entry .amount {
-  font-family: "DM Mono", monospace;
-  font-variant-numeric: tabular-nums;
+  font-family: "Roboto Mono", monospace;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--on-surface);
 }
-
-/* receipt-style dotted leaders in the results ledgers */
-.ledger .entry { gap: 0.4rem; }
-.ledger .entry .label { order: 0; white-space: nowrap; }
-.ledger .entry::before {
-  content: "";
-  order: 1;
-  flex: 1;
-  align-self: center;
-  border-bottom: 1px dotted var(--rule);
-}
-.ledger .entry .amount { order: 2; }
 
 #results h3 {
-  font-family: "Hanken Grotesk", sans-serif;
-  font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: var(--ink-soft);
-  margin: 1.6rem 0 0.5rem;
+  letter-spacing: 0.1em;
+  color: var(--primary);
+  margin: 1.5rem 0 0.25rem;
 }
 #results h3:first-child { margin-top: 0; }
+.m3-card-accent .ledger:last-of-type .entry .amount { color: var(--primary); }
 
-/* the final "settle up" block reads like a stamped total */
-.sheet-receipt .ledger:last-of-type .entry .amount { color: var(--accent); }
-
-.muted { color: var(--ink-soft); font-style: italic; font-size: 0.92rem; border: none !important; }
+.muted {
+  color: var(--on-surface-variant);
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 1rem 0;
+  border: none !important;
+}
+.muted::before { display: none; }
 
 .error {
-  color: var(--accent);
-  font-size: 0.85rem;
-  min-height: 1.2em;
-  margin-top: 0.6rem;
+  color: var(--error);
+  font-size: 0.75rem;
+  min-height: 1.1em;
+  margin: 0.5rem 0 0;
+  padding-left: 0.25rem;
 }
 
-.colophon {
-  margin-top: 3rem;
-  padding-top: 1.4rem;
-  border-top: 1px solid var(--rule);
-  text-align: center;
-  font-family: "DM Mono", monospace;
-  font-size: 0.74rem;
+.m3-label-overline {
+  margin: 1.5rem 0 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: var(--ink-soft);
+  color: var(--on-surface-variant);
+}
+
+/* participant rows (built by ui.py) */
+.participant {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 56px;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--outline-variant);
+}
+.participant:last-child { border-bottom: none; }
+.participant input[type="checkbox"].p-check {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  flex: none;
+  border: 2px solid var(--on-surface-variant);
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  transition: background 0.12s var(--ease-emph),
+              border-color 0.12s var(--ease-emph);
+}
+.participant input[type="checkbox"].p-check:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' d='M4 9.5l3.2 3.2L14 6'/%3E%3C/svg%3E");
+}
+.participant input.p-check:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.participant span { flex: 1; color: var(--on-surface); }
+.p-weight {
+  width: 76px;
+  height: 44px;
+  /* 16px keeps iOS from auto-zooming the page on focus. */
+  font: 500 1rem "Roboto Mono", monospace;
+  text-align: right;
+  color: var(--on-surface);
+  background: transparent;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-xs);
+  padding: 0 0.5rem;
+  outline: none;
+}
+.p-weight:focus { border: 2px solid var(--primary); padding: 0 calc(0.5rem - 1px); }
+
+.m3-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--on-surface-variant);
+}
+
+/* ---------- boot / spinner ---------- */
+
+.m3-boot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--on-surface-variant);
+  font-size: 0.875rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+.m3-spinner {
+  width: 20px; height: 20px;
+  border: 3px solid var(--outline-variant);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: m3-spin 0.9s linear infinite;
 }
 
 /* ---------- motion ---------- */
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
+@keyframes m3-rise {
+  from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes m3-spin { to { transform: rotate(360deg); } }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- touch input (mobile AND touchscreen laptops) ---------- */
+/* Keyed to the pointer, not the viewport, so a large touchscreen still
+   gets finger-sized targets (M3 minimum 48dp). */
+@media (pointer: coarse) {
+  button.link { min-height: 48px; padding: 0 1rem; }
+  .m3-btn { min-height: 48px; }
+  .m3-btn-filled { height: 52px; }
+  .m3-seg span { padding: 0.85rem 1.35rem; }
+  .participant { min-height: 56px; }
+  .participant input[type="checkbox"].p-check { width: 22px; height: 22px; }
+  .p-weight { height: 48px; }
+  li.entry { min-height: 56px; }
+  .m3-field input,
+  .m3-field select { min-height: 56px; }
+}
+
+/* ---------- small screens ---------- */
+@media (max-width: 480px) {
+  .m3-topbar { padding-top: 1.5rem; }
+  .m3-card { padding: 1.25rem; border-radius: var(--r-lg); margin: 0.75rem 0; }
+  .m3-row { gap: 0.5rem; }
+  .m3-field { flex-basis: 100%; }
+  .m3-btn-filled { width: 100%; }
+  .m3-btn-tonal { width: 100%; align-self: stretch; }
+  .m3-segmented { display: flex; width: 100%; }
+  .m3-seg { flex: 1; }
+  .m3-seg span { justify-content: center; }
+}
+
+/* Production: don't leak Python tracebacks into the page. Errors are still
+   handled in code and logged to the console; this only hides PyScript's
+   default visual error element. */
+py-script-error, .py-error, .py-error-banner { display: none !important; }

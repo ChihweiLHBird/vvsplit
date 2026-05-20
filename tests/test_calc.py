@@ -3,19 +3,36 @@
     python3 -m unittest discover -s tests
 """
 
+import json
 import os
 import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from splitcore.calc import per_person_totals, settle_up, split_item
-from splitcore.model import AppState, Item, Person
+from splitcore.calc import (
+    is_finite_number,
+    parse_finite,
+    per_person_totals,
+    settle_up,
+    split_item,
+)
+from splitcore.model import (
+    MODE_EQUAL,
+    MODE_UNEVEN,
+    AppState,
+    Item,
+    Person,
+)
 
 
 def item(amount, participants, payer="a", split=None, iid="i1", desc="x"):
     return Item(iid, desc, amount, payer, participants,
-                split or {"mode": "equal"})
+                split or {"mode": MODE_EQUAL})
+
+
+def uneven(weights):
+    return {"mode": MODE_UNEVEN, "weights": weights}
 
 
 class SplitItemTests(unittest.TestCase):
@@ -25,36 +42,44 @@ class SplitItemTests(unittest.TestCase):
 
     def test_equal_penny_remainder_sums_exactly(self):
         shares = split_item(item(1000, ["a", "b", "c"]))
-        # 1000 / 3 -> 334, 333, 333
+        # 1000 / 3 -> first participants absorb the leftover penny.
         self.assertEqual(shares, {"a": 334, "b": 333, "c": 333})
         self.assertEqual(sum(shares.values()), 1000)
 
     def test_uneven_proportional_with_remainder(self):
-        it = item(1000, ["a", "b"],
-                  split={"mode": "uneven", "weights": {"a": 1, "b": 3}})
-        shares = split_item(it)
+        shares = split_item(item(1000, ["a", "b"],
+                                  split=uneven({"a": 1, "b": 3})))
         self.assertEqual(shares, {"a": 250, "b": 750})
         self.assertEqual(sum(shares.values()), 1000)
 
     def test_uneven_remainder_goes_to_largest_fraction(self):
-        # 100 cents, weights 1:1:1 -> 33.33 each, remainder 1 penny.
-        it = item(100, ["a", "b", "c"],
-                  split={"mode": "uneven",
-                         "weights": {"a": 1, "b": 1, "c": 1}})
-        shares = split_item(it)
+        # 100 cents, weights 1:1:1 -> 33.33 each, 1 penny remainder.
+        # Equal fractions tie-break by participant order -> "a" gets it.
+        shares = split_item(item(100, ["a", "b", "c"],
+                                 split=uneven({"a": 1, "b": 1, "c": 1})))
+        self.assertEqual(shares, {"a": 34, "b": 33, "c": 33})
         self.assertEqual(sum(shares.values()), 100)
-        self.assertEqual(sorted(shares.values()), [33, 33, 34])
 
     def test_uneven_all_zero_weights_falls_back_to_equal(self):
-        it = item(300, ["a", "b", "c"],
-                  split={"mode": "uneven",
-                         "weights": {"a": 0, "b": 0, "c": 0}})
-        shares = split_item(it)
-        self.assertEqual(sum(shares.values()), 300)
+        shares = split_item(item(300, ["a", "b", "c"],
+                                 split=uneven({"a": 0, "b": 0, "c": 0})))
         self.assertEqual(shares, {"a": 100, "b": 100, "c": 100})
+        self.assertEqual(sum(shares.values()), 300)
 
     def test_no_participants(self):
         self.assertEqual(split_item(item(500, [])), {})
+
+    def test_unknown_split_mode_raises(self):
+        it = Item("i1", "x", 100, "a", ["a", "b"], {"mode": "weird"})
+        with self.assertRaises(ValueError):
+            split_item(it)
+
+    def test_negative_amount_is_conserved_not_crash(self):
+        # The pure layer does not validate sign (UI does). Document that a
+        # negative amount still distributes exactly and never crashes.
+        shares = split_item(item(-300, ["a", "b", "c"]))
+        self.assertEqual(shares, {"a": -100, "b": -100, "c": -100})
+        self.assertEqual(sum(shares.values()), -300)
 
 
 class TotalsTests(unittest.TestCase):
@@ -74,8 +99,9 @@ class TotalsTests(unittest.TestCase):
 
 
 class SettleUpTests(unittest.TestCase):
-    def test_multi_payer_settles_to_zero(self):
-        # A pays 1000 split among A,B,C ; C pays 600 split among B,C.
+    def test_multi_payer_exact_transfers(self):
+        # A pays 900 split A,B,C ; C pays 600 split B,C.
+        # owed a:300 b:600 c:600 ; paid a:900 c:600 ; net a:+600 b:-600 c:0.
         state = AppState(
             people=[Person("a", "A"), Person("b", "B"), Person("c", "C")],
             items=[
@@ -83,18 +109,89 @@ class SettleUpTests(unittest.TestCase):
                 item(600, ["b", "c"], payer="c", iid="2"),
             ],
         )
-        transfers = settle_up(state)
-        # Reconstruct net effect and assert everyone nets to zero.
-        net = {"a": 0, "b": 0, "c": 0}
+        self.assertEqual(settle_up(state), [("b", "a", 600)])
+
+    def test_greedy_one_creditor_many_debtors(self):
+        # A fronts 400 for four; each owes 100, A net +300.
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B"),
+                    Person("c", "C"), Person("d", "D")],
+            items=[item(400, ["a", "b", "c", "d"], payer="a", iid="1")],
+        )
+        self.assertEqual(
+            settle_up(state),
+            [("b", "a", 100), ("c", "a", 100), ("d", "a", 100)],
+        )
+
+    def test_transfers_conserve_and_are_positive(self):
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B"), Person("c", "C")],
+            items=[
+                item(1000, ["a", "b", "c"], payer="a", iid="1"),
+                item(330, ["a", "c"], payer="b", iid="2"),
+            ],
+        )
         owed = per_person_totals(state)
-        paid = {"a": 900, "b": 0, "c": 600}
-        for pid in net:
-            net[pid] = paid[pid] - owed[pid]
-        for debtor, creditor, amount in transfers:
+        paid = {"a": 1000, "b": 330, "c": 0}
+        net = {p.id: paid[p.id] - owed[p.id] for p in state.people}
+        for debtor, creditor, amount in settle_up(state):
             self.assertGreater(amount, 0)
             net[debtor] += amount
             net[creditor] -= amount
         self.assertEqual(net, {"a": 0, "b": 0, "c": 0})
+
+
+class ReferentialIntegrityTests(unittest.TestCase):
+    """Characterizes the known limitation (security review, Medium): ids
+    referencing non-people are not crashes but are silently unsettled.
+    These tests lock the behavior so a change is deliberate."""
+
+    def test_unknown_participant_counted_but_not_settled(self):
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B")],
+            items=[item(300, ["a", "b", "ghost"], payer="a", iid="i1")],
+        )
+        self.assertEqual(per_person_totals(state),
+                         {"a": 100, "b": 100, "ghost": 100})
+        # ghost is excluded from net; only b settles with a.
+        self.assertEqual(settle_up(state), [("b", "a", 100)])
+
+    def test_unknown_payer_payment_is_lost(self):
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B")],
+            items=[item(200, ["a", "b"], payer="ghost", iid="i1")],
+        )
+        # Nobody among people is a creditor -> no transfers.
+        self.assertEqual(settle_up(state), [])
+
+
+class ModelTests(unittest.TestCase):
+    def test_person_by_id(self):
+        p = Person("a", "Alice")
+        state = AppState(people=[p, Person("b", "Bob")])
+        self.assertIs(state.person_by_id("a"), p)
+        self.assertIsNone(state.person_by_id("missing"))
+
+    def test_items_referencing_payer_and_participant(self):
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B"), Person("c", "C")],
+            items=[
+                item(100, ["b", "c"], payer="a", iid="i1"),
+                item(50, ["c"], payer="c", iid="i2"),
+            ],
+        )
+        self.assertEqual([i.id for i in state.items_referencing("a")],
+                         ["i1"])                       # payer only
+        self.assertEqual([i.id for i in state.items_referencing("b")],
+                         ["i1"])                       # participant only
+        self.assertEqual({i.id for i in state.items_referencing("c")},
+                         {"i1", "i2"})                 # both
+        self.assertEqual(state.items_referencing("nobody"), [])
+
+    def test_mode_constants_match_wire_values(self):
+        # The app and persisted JSON depend on these literal values; lock
+        # them so a constant rename can't silently diverge from old data.
+        self.assertEqual((MODE_EQUAL, MODE_UNEVEN), ("equal", "uneven"))
 
 
 class SerializationTests(unittest.TestCase):
@@ -102,11 +199,91 @@ class SerializationTests(unittest.TestCase):
         state = AppState(
             people=[Person("a", "Alice"), Person("b", "Bob")],
             items=[item(1234, ["a", "b"], payer="a",
-                        split={"mode": "uneven",
-                               "weights": {"a": 2, "b": 1}})],
+                        split=uneven({"a": 2, "b": 1}))],
         )
         restored = AppState.from_dict(state.to_dict())
         self.assertEqual(restored.to_dict(), state.to_dict())
+
+    def test_json_round_trip_float_weights(self):
+        # Real uneven input yields float weights; exercise the actual
+        # JSON path storage.py uses (json.dumps -> json.loads).
+        state = AppState(
+            people=[Person("a", "A"), Person("b", "B")],
+            items=[item(1000, ["a", "b"], payer="a",
+                        split=uneven({"a": 2.5, "b": 0.5}))],
+        )
+        restored = AppState.from_dict(json.loads(json.dumps(state.to_dict())))
+        self.assertEqual(restored.to_dict(), state.to_dict())
+        self.assertEqual(sum(split_item(restored.items[0]).values()), 1000)
+
+
+class ConservationTests(unittest.TestCase):
+    def test_money_is_conserved_across_amounts(self):
+        for amt in (1, 2, 3, 7, 99, 100, 101, 1234, 99999, 100000):
+            eq = split_item(item(amt, ["a", "b", "c"]))
+            self.assertEqual(sum(eq.values()), amt, "equal %d" % amt)
+            un = split_item(item(amt, ["a", "b", "c"],
+                                 split=uneven({"a": 1, "b": 2, "c": 4})))
+            self.assertEqual(sum(un.values()), amt, "uneven %d" % amt)
+
+
+class HardeningTests(unittest.TestCase):
+    """Untrusted input from typed fields or hand-edited localStorage must
+    never crash or silently lose money."""
+
+    def test_is_finite_number(self):
+        for good in ("12", "0.5", 3, -2, "1e6"):
+            self.assertTrue(is_finite_number(good))
+        for bad in ("inf", "-inf", "nan", "1e400", "abc", "", None, "1,5"):
+            self.assertFalse(is_finite_number(bad))
+
+    def test_parse_finite_returns_value_or_none(self):
+        self.assertEqual(parse_finite("12.50"), 12.5)
+        self.assertEqual(parse_finite(-3), -3.0)
+        for bad in ("inf", "nan", "1e400", "abc", "", None):
+            self.assertIsNone(parse_finite(bad))
+
+    def test_uneven_inf_weight_falls_back_not_crash(self):
+        shares = split_item(item(900, ["a", "b", "c"],
+                                 split=uneven({"a": "inf", "b": 1, "c": 1})))
+        # inf weight sanitized to 0; the rest split the amount.
+        self.assertEqual(shares, {"a": 0, "b": 450, "c": 450})
+        self.assertEqual(sum(shares.values()), 900)
+
+    def test_uneven_nan_and_negative_weights_sanitized(self):
+        shares = split_item(item(600, ["a", "b"],
+                                 split=uneven({"a": "nan", "b": -5})))
+        # both invalid -> all zero -> equal-split fallback
+        self.assertEqual(shares, {"a": 300, "b": 300})
+        self.assertEqual(sum(shares.values()), 600)
+
+    def test_non_dict_split_treated_as_equal(self):
+        it = Item("i1", "x", 300, "a", ["a", "b", "c"], None)
+        self.assertEqual(split_item(it), {"a": 100, "b": 100, "c": 100})
+
+    def test_from_dict_skips_bad_record_and_coerces(self):
+        raw = {
+            "people": [
+                {"id": 1, "name": "Alice"},          # non-str -> coerced
+                {"id": "b"},                          # missing name -> skipped
+                {"id": "c", "name": "Cara"},
+            ],
+            "items": [
+                {"id": "i1", "description": "ok", "amount_cents": "5",
+                 "payer_id": "a", "participant_ids": "xy", "split": 7},
+            ],
+        }
+        state = AppState.from_dict(raw)
+        ids = sorted(p.id for p in state.people)
+        self.assertEqual(ids, ["1", "c"])  # bad record dropped, id stringified
+        it = state.items[0]
+        self.assertEqual(it.amount_cents, 0)            # non-int coerced
+        self.assertEqual(it.participant_ids, [])        # non-list coerced
+        self.assertEqual(it.split_mode(), MODE_EQUAL)   # non-dict split safe
+
+    def test_from_dict_non_dict_input(self):
+        self.assertEqual(AppState.from_dict("garbage").to_dict(),
+                         {"people": [], "items": []})
 
 
 if __name__ == "__main__":

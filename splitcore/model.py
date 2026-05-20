@@ -18,7 +18,7 @@ class Person:
 
     @staticmethod
     def from_dict(d):
-        return Person(d["id"], d["name"])
+        return Person(str(d["id"]), str(d["name"]))
 
 
 class Item:
@@ -38,7 +38,16 @@ class Item:
         self.split = split
 
     def split_mode(self):
-        return self.split.get("mode", MODE_EQUAL)
+        if isinstance(self.split, dict):
+            return self.split.get("mode", MODE_EQUAL)
+        return MODE_EQUAL
+
+    def weights(self):
+        if isinstance(self.split, dict):
+            w = self.split.get("weights", {})
+            if isinstance(w, dict):
+                return w
+        return {}
 
     def to_dict(self):
         return {
@@ -52,13 +61,24 @@ class Item:
 
     @staticmethod
     def from_dict(d):
+        pids = d.get("participant_ids", [])
+        if not isinstance(pids, list):
+            pids = []
+        split = d.get("split", {})
+        if not isinstance(split, dict):
+            split = {"mode": MODE_EQUAL}
+        amount = d.get("amount_cents", 0)
+        # bool is an int subclass; exclude it. Reject non-int (e.g. strings
+        # from hand-edited storage) so downstream cent math can't crash.
+        if isinstance(amount, bool) or not isinstance(amount, int):
+            amount = 0
         return Item(
-            d["id"],
-            d["description"],
-            d["amount_cents"],
-            d["payer_id"],
-            d["participant_ids"],
-            d["split"],
+            str(d.get("id", "")),
+            str(d.get("description", "")),
+            amount,
+            str(d.get("payer_id", "")),
+            [str(p) for p in pids],
+            split,
         )
 
 
@@ -89,7 +109,19 @@ class AppState:
 
     @staticmethod
     def from_dict(d):
-        return AppState(
-            people=[Person.from_dict(p) for p in d.get("people", [])],
-            items=[Item.from_dict(i) for i in d.get("items", [])],
-        )
+        if not isinstance(d, dict):
+            return AppState()
+        # Skip individual bad records rather than discarding all saved state.
+        people = []
+        for p in d.get("people", []) or []:
+            try:
+                people.append(Person.from_dict(p))
+            except Exception:
+                pass
+        items = []
+        for i in d.get("items", []) or []:
+            try:
+                items.append(Item.from_dict(i))
+            except Exception:
+                pass
+        return AppState(people=people, items=items)

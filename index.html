@@ -3,7 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f6e43">
   <title>vvsplit — bill splitter</title>
+
+  <!-- Defense-in-depth CSP. DISABLED by default: PyScript needs WebAssembly
+       ('wasm-unsafe-eval') plus the exact CDN hosts it fetches the runtime
+       from, so a wrong policy silently prevents the app from booting.
+       Before enabling: load the app with DevTools > Network/Console open,
+       confirm every request's host is allow-listed below, then uncomment.
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src https://pyscript.net 'wasm-unsafe-eval';
+    style-src https://pyscript.net https://fonts.googleapis.com 'unsafe-inline';
+    font-src https://fonts.gstatic.com;
+    img-src 'self' data:;
+    connect-src https://pyscript.net;
+    base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  -->
 
   <!-- Pinned PyScript release. To upgrade, bump the version in both URLs
        (see https://pyscript.net for the latest release). -->
@@ -12,81 +28,108 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <main>
-    <header class="masthead">
-      <div class="wordmark">vvsplit</div>
-      <p class="tagline">Split the bill, line&nbsp;by&nbsp;line. Kept in your browser, nowhere&nbsp;else.</p>
-    </header>
+  <noscript>
+    <p class="error" style="text-align:center;margin:2rem">
+      vvsplit needs JavaScript enabled to run.
+    </p>
+  </noscript>
 
-    <section class="sheet" aria-labelledby="h-people">
-      <div class="sheet-head">
-        <h2 id="h-people">People</h2>
-        <span class="sheet-num">01</span>
+  <header class="m3-topbar">
+    <div class="m3-topbar-inner">
+      <span class="m3-topbar-glyph" aria-hidden="true">÷</span>
+      <div>
+        <h1 class="m3-headline">vvsplit</h1>
+        <p class="m3-supporting">Split the bill, line by line — kept in your browser.</p>
       </div>
-      <div class="field-row">
-        <input id="person-name" type="text" placeholder="Add a name…" autocomplete="off">
-        <button id="add-person" class="btn">Add</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="boot-msg" class="m3-boot">
+      <span class="m3-spinner" aria-hidden="true"></span>
+      Loading… if this stays, the PyScript runtime could not load
+      (offline or the CDN is blocked).
+    </p>
+
+    <section class="m3-card" aria-labelledby="h-people" style="--i:0">
+      <div class="m3-card-head">
+        <span class="m3-num">1</span>
+        <h2 id="h-people" class="m3-title">People</h2>
+      </div>
+      <div class="m3-row">
+        <div class="m3-field">
+          <input id="person-name" type="text" placeholder=" " autocomplete="off">
+          <label for="person-name">Name</label>
+        </div>
+        <button id="add-person" class="m3-btn m3-btn-tonal">Add</button>
       </div>
       <p id="people-error" class="error" role="alert"></p>
-      <ul id="people-list"></ul>
+      <ul id="people-list" class="m3-list"></ul>
     </section>
 
-    <section class="sheet" aria-labelledby="h-item">
-      <div class="sheet-head">
-        <h2 id="h-item">Add item</h2>
-        <span class="sheet-num">02</span>
+    <section class="m3-card" aria-labelledby="h-item" style="--i:1">
+      <div class="m3-card-head">
+        <span class="m3-num">2</span>
+        <h2 id="h-item" class="m3-title">Add item</h2>
       </div>
 
-      <div class="field-row">
-        <input id="item-desc" type="text" placeholder="What was it? (e.g. Dinner)" autocomplete="off">
-        <input id="item-amount" class="amount-input" type="text" inputmode="decimal" placeholder="0.00">
+      <div class="m3-row">
+        <div class="m3-field">
+          <input id="item-desc" type="text" placeholder=" " autocomplete="off">
+          <label for="item-desc">Description</label>
+        </div>
+        <div class="m3-field m3-field-amount">
+          <input id="item-amount" type="text" inputmode="decimal" placeholder=" ">
+          <label for="item-amount">Amount</label>
+          <span class="m3-prefix">$</span>
+        </div>
       </div>
 
-      <label class="inline-field">
-        <span class="inline-label">Paid by</span>
+      <div class="m3-field m3-field-select">
         <select id="payer-select"></select>
-      </label>
+        <label for="payer-select" class="m3-field-label-static">Paid by</label>
+      </div>
 
-      <div class="toggle" role="radiogroup" aria-label="Split mode">
-        <label class="toggle-opt">
+      <div class="m3-segmented" role="radiogroup" aria-label="Split mode">
+        <label class="m3-seg">
           <input type="radio" name="split-mode" id="mode-equal" checked>
-          <span>Equally</span>
+          <span><i class="m3-check" aria-hidden="true"></i>Equally</span>
         </label>
-        <label class="toggle-opt">
+        <label class="m3-seg">
           <input type="radio" name="split-mode" id="mode-uneven">
-          <span>Uneven</span>
+          <span><i class="m3-check" aria-hidden="true"></i>Uneven</span>
         </label>
       </div>
 
-      <p class="hint">Who shares this item</p>
-      <div id="participants"></div>
+      <p class="m3-label-overline">Who shares this item</p>
+      <div id="participants" class="m3-list"></div>
 
-      <button id="add-item" class="btn btn-accent">Add item</button>
+      <button id="add-item" class="m3-btn m3-btn-filled">Add item</button>
       <p id="item-error" class="error" role="alert"></p>
     </section>
 
-    <section class="sheet" aria-labelledby="h-items">
-      <div class="sheet-head">
-        <h2 id="h-items">Items</h2>
-        <span class="sheet-num">03</span>
+    <section class="m3-card" aria-labelledby="h-items" style="--i:2">
+      <div class="m3-card-head">
+        <span class="m3-num">3</span>
+        <h2 id="h-items" class="m3-title">Items</h2>
       </div>
-      <ul id="items-list"></ul>
+      <ul id="items-list" class="m3-list"></ul>
     </section>
 
-    <section class="sheet sheet-receipt" aria-labelledby="h-results">
-      <div class="sheet-head">
-        <h2 id="h-results">Results</h2>
-        <span class="sheet-num">04</span>
+    <section class="m3-card m3-card-accent" aria-labelledby="h-results" style="--i:3">
+      <div class="m3-card-head">
+        <span class="m3-num">4</span>
+        <h2 id="h-results" class="m3-title">Results</h2>
       </div>
       <div id="results"></div>
     </section>
 
-    <footer class="colophon">vvsplit · Python in the browser, no server</footer>
+    <footer class="m3-footer">vvsplit · Python in the browser, no server</footer>
   </main>
 
   <script type="mpy" src="./main.py" config="./pyscript.toml"></script>

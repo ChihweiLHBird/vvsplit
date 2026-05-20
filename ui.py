@@ -8,8 +8,11 @@ so user-entered names cannot inject markup.
 from pyscript import document, window
 from pyscript.ffi import create_proxy
 
-from splitcore.calc import per_person_totals, settle_up
+from splitcore.calc import parse_finite, per_person_totals, settle_up
 from splitcore.model import MODE_EQUAL, MODE_UNEVEN, Item, Person
+
+# Reject absurd magnitudes early (a finite 1e308 still poisons later math).
+_MAX_AMOUNT = 1e9  # dollars
 
 _state = None
 _storage = None
@@ -178,7 +181,13 @@ def _render_results():
     box = _qs("#results")
     _clear(box)
 
-    totals = per_person_totals(_state)
+    # Defensive: a poisoned/hand-edited state must degrade to an empty
+    # result, never brick the whole UI on load. Failures are logged.
+    try:
+        totals = per_person_totals(_state)
+    except Exception as e:
+        window.console.warn("vvsplit: totals failed: " + str(e))
+        totals = {}
     box.appendChild(_el("h3", "Each person's share"))
     ul = _el("ul", None, "ledger")
     if not totals:
@@ -188,7 +197,11 @@ def _render_results():
     box.appendChild(ul)
 
     box.appendChild(_el("h3", "Settle up"))
-    transfers = settle_up(_state)
+    try:
+        transfers = settle_up(_state)
+    except Exception as e:
+        window.console.warn("vvsplit: settle-up failed: " + str(e))
+        transfers = []
     ul2 = _el("ul", None, "ledger")
     if not transfers:
         ul2.appendChild(_el("li", "All settled — no transfers needed.",
@@ -198,6 +211,17 @@ def _render_results():
         label = "%s → %s" % (_name(by_id, debtor), _name(by_id, creditor))
         ul2.appendChild(_row(label, _money(amount)))
     box.appendChild(ul2)
+
+
+def _persist_and_render():
+    """Save then re-render. A storage failure (quota, private mode) must not
+    desync memory from the DOM or surface a traceback — log and still render.
+    """
+    try:
+        _storage.save(_state)
+    except Exception as e:
+        window.console.warn("vvsplit: could not save: " + str(e))
+    render_all()
 
 
 # ---------- handlers ----------
@@ -214,8 +238,7 @@ def on_add_person(event):
         return
     _state.people.append(Person(_next_id("p"), name))
     field.value = ""
-    _storage.save(_state)
-    render_all()
+    _persist_and_render()
 
 
 def _make_remove_person(pid):
@@ -227,13 +250,21 @@ def _make_remove_person(pid):
                 "Can't remove — used by item(s): " + descs)
             return
         _state.people = [p for p in _state.people if p.id != pid]
-        _storage.save(_state)
-        render_all()
+        _persist_and_render()
     return handler
 
 
 def on_mode_change(event):
     _render_item_form()
+
+
+def _select_share_field(event):
+    """Select a share field's text on focus/click so the value can be
+    replaced with one keystroke. Delegated from the persistent
+    #participants container, so it survives form re-renders."""
+    el = event.target
+    if el.classList.contains("p-weight"):
+        el.select()
 
 
 def on_add_item(event):
@@ -245,12 +276,14 @@ def on_add_item(event):
         err.textContent = "Enter a description."
         return
 
-    raw_amount = _qs("#item-amount").value.strip()
-    try:
-        amount_cents = int(round(float(raw_amount) * 100))
-    except (ValueError, TypeError):
+    amount = parse_finite(_qs("#item-amount").value.strip())
+    if amount is None:
         err.textContent = "Amount must be a number."
         return
+    if amount > _MAX_AMOUNT:
+        err.textContent = "Amount is unreasonably large."
+        return
+    amount_cents = int(round(amount * 100))
     if amount_cents <= 0:
         err.textContent = "Amount must be greater than zero."
         return
@@ -272,9 +305,8 @@ def on_add_item(event):
         for w in _qsa(".p-weight"):
             pid = w.getAttribute("data-pid")
             if pid in participant_ids:
-                try:
-                    val = float(w.value)
-                except (ValueError, TypeError):
+                val = parse_finite(w.value)
+                if val is None:
                     err.textContent = "Weights must be numbers."
                     return
                 if val < 0:
@@ -292,15 +324,13 @@ def on_add_item(event):
         _next_id("i"), desc, amount_cents, payer_id, participant_ids, split))
     _qs("#item-desc").value = ""
     _qs("#item-amount").value = ""
-    _storage.save(_state)
-    render_all()
+    _persist_and_render()
 
 
 def _make_remove_item(iid):
     def handler(event):
         _state.items = [i for i in _state.items if i.id != iid]
-        _storage.save(_state)
-        render_all()
+        _persist_and_render()
     return handler
 
 
@@ -315,4 +345,10 @@ def start(state, storage_module):
     _on(_qs("#add-item"), "click", on_add_item, track=False)
     _on(_qs("#mode-equal"), "change", on_mode_change, track=False)
     _on(_qs("#mode-uneven"), "change", on_mode_change, track=False)
+    parts = _qs("#participants")
+    _on(parts, "focusin", _select_share_field, track=False)
+    _on(parts, "click", _select_share_field, track=False)
     render_all()
+    boot = _qs("#boot-msg")
+    if boot:
+        boot.remove()

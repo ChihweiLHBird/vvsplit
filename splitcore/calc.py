@@ -7,6 +7,26 @@ always equals the input amount exactly (no lost or invented pennies).
 from splitcore.model import MODE_EQUAL, MODE_UNEVEN
 
 
+def parse_finite(x):
+    """Parse x to a real, finite float, or return None.
+
+    Single source of truth for the untrusted-input boundary: amounts/weights
+    arrive from typed input or hand-edited localStorage. MicroPython lacks
+    math.isfinite, so detect NaN via self-inequality and inf via abs().
+    Returning the parsed value lets callers avoid a second float() parse.
+    """
+    try:
+        f = float(x)
+    except (ValueError, TypeError):
+        return None
+    return f if (f == f and abs(f) != float("inf")) else None
+
+
+def is_finite_number(x):
+    """True only for a real, finite number. Rejects NaN and +/-inf."""
+    return parse_finite(x) is not None
+
+
 def _equal_shares(participants, amount):
     """Even split; leftover pennies go one each to the first participants."""
     n = len(participants)
@@ -40,12 +60,16 @@ def split_item(item):
         return _equal_shares(participants, amount)
 
     if mode == MODE_UNEVEN:
-        weights = item.split.get("weights", {})
-        w = [float(weights.get(pid, 0)) for pid in participants]
+        weights = item.weights()
+        w = []
+        for pid in participants:
+            v = parse_finite(weights.get(pid, 0))
+            w.append(v if (v is not None and v > 0) else 0.0)
         total_w = sum(w)
-        if total_w <= 0:
-            # Degenerate weights: fall back to an equal split so money is
-            # still conserved rather than silently dropping the amount.
+        # `not (> 0)` also rejects 0 and NaN totals; fall back to an equal
+        # split so money is still conserved rather than crashing or
+        # silently dropping the amount on degenerate/hostile weights.
+        if not (total_w > 0):
             return _equal_shares(participants, amount)
 
         exact = [amount * wi / total_w for wi in w]
