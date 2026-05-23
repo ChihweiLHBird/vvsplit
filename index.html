@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1f6e43">
-  <title>vvsplit — bill splitter</title>
+  <meta name="theme-color" content="#635bff">
+  <title>vvsplit — Workspace</title>
 
   <!-- Defense-in-depth CSP. DISABLED by default: PyScript needs WebAssembly
        ('wasm-unsafe-eval') plus the exact CDN hosts it fetches the runtime
@@ -21,14 +21,13 @@
     base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   -->
 
-  <!-- Pinned PyScript release. To upgrade, bump the version in both URLs
-       (see https://pyscript.net for the latest release). -->
+  <!-- Pinned PyScript release. Bump in both URLs to upgrade. -->
   <link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
   <script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -39,98 +38,168 @@
     </p>
   </noscript>
 
-  <header class="m3-topbar">
-    <div class="m3-topbar-inner">
-      <span class="m3-topbar-glyph" aria-hidden="true">÷</span>
-      <div>
-        <h1 class="m3-headline">vvsplit</h1>
-        <p class="m3-supporting">Split the bill, line by line — kept in your browser.</p>
-      </div>
-    </div>
-  </header>
+  <div class="app">
+    <!-- ============ LEFT NAV ============ -->
+    <aside class="nav">
+      <div class="brand"><span class="brand-mark">v</span>vvsplit</div>
 
-  <main>
-    <p id="boot-msg" class="m3-boot">
-      <span class="m3-spinner" aria-hidden="true"></span>
-      Loading… if this stays, the PyScript runtime could not load
-      (offline or the CDN is blocked).
-    </p>
-
-    <section class="m3-card" aria-labelledby="h-people" style="--i:0">
-      <div class="m3-card-head">
-        <span class="m3-num">1</span>
-        <h2 id="h-people" class="m3-title">People</h2>
+      <div class="nav-section">
+        <div class="label">Workspace</div>
+        <a class="nav-item active" href="#h-overview">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l6-5 6 5v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/><path d="M6 15v-5h4v5"/></svg>
+          </span>
+          Overview
+        </a>
+        <a class="nav-item" href="#h-items">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12"/></svg>
+          </span>
+          Items
+          <span class="count num" id="count-items">0</span>
+        </a>
+        <a class="nav-item" href="#h-people">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><path d="M2 14a4 4 0 0 1 8 0"/><circle cx="12" cy="5" r="2"/><path d="M10 13a4 4 0 0 1 4-1"/></svg>
+          </span>
+          People
+          <span class="count num" id="count-people">0</span>
+        </a>
+        <a class="nav-item" href="#h-settle">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l4-4 4 4"/><path d="M7 2v8"/><path d="M13 10l-4 4-4-4"/><path d="M9 14V6"/></svg>
+          </span>
+          Settle up
+          <span class="count num" id="count-settle">0</span>
+        </a>
       </div>
-      <div class="m3-row">
-        <div class="m3-field">
-          <input id="person-name" type="text" placeholder=" " autocomplete="off">
-          <label for="person-name">Name</label>
+
+      <div class="nav-section nav-section-people">
+        <div class="label">People</div>
+        <ul id="people-list" class="nav-people"></ul>
+        <div class="nav-add-person">
+          <input id="person-name" class="input input-sm" type="text" placeholder="Add a name…" autocomplete="off">
+          <button id="add-person" class="btn btn-secondary btn-sm">+</button>
         </div>
-        <button id="add-person" class="m3-btn m3-btn-tonal">Add</button>
+        <p id="people-error" class="error" role="alert"></p>
       </div>
-      <p id="people-error" class="error" role="alert"></p>
-      <ul id="people-list" class="m3-list"></ul>
+
+      <div class="nav-foot">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Saved · localStorage</span>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <section class="main">
+      <header class="topbar">
+        <div class="crumb">
+          <b>vvsplit</b> <span class="sep">·</span> Workspace
+        </div>
+      </header>
+
+      <p id="boot-msg" class="boot">
+        <span class="boot-spinner" aria-hidden="true"></span>
+        Loading… if this stays, the PyScript runtime could not load
+        (offline or the CDN is blocked).
+      </p>
+
+      <div class="page-head" id="h-overview">
+        <div>
+          <h1>Overview</h1>
+          <p id="page-supporting">Add people, then add items. Splits and settle-up update live.</p>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="kpi-strip">
+        <div class="kpi">
+          <div class="k">Total billed</div>
+          <div class="v grad num" id="kpi-total">$0.00</div>
+          <div class="sub" id="kpi-total-sub">0 items</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Per person avg</div>
+          <div class="v num" id="kpi-avg">$0.00</div>
+          <div class="sub" id="kpi-avg-sub">over 0 heads</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Top contributor</div>
+          <div class="v" id="kpi-top">—</div>
+          <div class="sub" id="kpi-top-sub">no payments yet</div>
+        </div>
+        <div class="kpi">
+          <div class="k">Transfers needed</div>
+          <div class="v num" id="kpi-transfers">0</div>
+          <div class="sub" id="kpi-transfers-sub">all settled</div>
+        </div>
+      </div>
+
+      <!-- Items panel -->
+      <div class="panel" id="h-items">
+        <div class="panel-head">
+          <h2>Items</h2>
+          <span class="desc">· activity log</span>
+        </div>
+        <div class="table-head">
+          <span></span>
+          <span>Item</span>
+          <span>Paid by</span>
+          <span>Method</span>
+          <span class="num-col">Amount</span>
+          <span></span>
+        </div>
+        <ul id="items-list" class="table"></ul>
+      </div>
+
+      <!-- Add expense panel -->
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Add expense</h2>
+          <span class="desc">· totals refresh as you commit</span>
+        </div>
+        <div class="panel-body">
+          <div class="quick-form">
+            <div class="field field-full">
+              <label class="field-label" for="item-desc">Description</label>
+              <input id="item-desc" class="input" type="text" placeholder="What was it?" autocomplete="off">
+            </div>
+            <div class="field">
+              <label class="field-label" for="item-amount">Amount</label>
+              <span class="currency-prefix">$</span>
+              <input id="item-amount" class="input input-amount" type="text" inputmode="decimal" placeholder="0.00">
+            </div>
+            <div class="field">
+              <label class="field-label" for="payer-select">Paid by</label>
+              <select id="payer-select" class="input"></select>
+            </div>
+            <button class="btn btn-primary" id="add-item">Add</button>
+          </div>
+
+          <div class="form-extras">
+            <div>
+              <div class="extras-label">Method</div>
+              <div class="seg" role="radiogroup" aria-label="Split mode">
+                <label><input type="radio" name="split-mode" id="mode-equal" checked><span class="t">Equally</span></label>
+                <label><input type="radio" name="split-mode" id="mode-uneven"><span class="t">Weighted</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="extras-label">Participants</div>
+              <div class="chip-row" id="participants"></div>
+            </div>
+          </div>
+
+          <p id="item-error" class="error" role="alert"></p>
+        </div>
+      </div>
     </section>
 
-    <section class="m3-card" aria-labelledby="h-item" style="--i:1">
-      <div class="m3-card-head">
-        <span class="m3-num">2</span>
-        <h2 id="h-item" class="m3-title">Add item</h2>
-      </div>
-
-      <div class="m3-row">
-        <div class="m3-field">
-          <input id="item-desc" type="text" placeholder=" " autocomplete="off">
-          <label for="item-desc">Description</label>
-        </div>
-        <div class="m3-field m3-field-amount">
-          <input id="item-amount" type="text" inputmode="decimal" placeholder=" ">
-          <label for="item-amount">Amount</label>
-          <span class="m3-prefix">$</span>
-        </div>
-      </div>
-
-      <div class="m3-field m3-field-select">
-        <select id="payer-select"></select>
-        <label for="payer-select" class="m3-field-label-static">Paid by</label>
-      </div>
-
-      <div class="m3-segmented" role="radiogroup" aria-label="Split mode">
-        <label class="m3-seg">
-          <input type="radio" name="split-mode" id="mode-equal" checked>
-          <span><i class="m3-check" aria-hidden="true"></i>Equally</span>
-        </label>
-        <label class="m3-seg">
-          <input type="radio" name="split-mode" id="mode-uneven">
-          <span><i class="m3-check" aria-hidden="true"></i>Uneven</span>
-        </label>
-      </div>
-
-      <p class="m3-label-overline">Who shares this item</p>
-      <div id="participants" class="m3-list"></div>
-
-      <button id="add-item" class="m3-btn m3-btn-filled">Add item</button>
-      <p id="item-error" class="error" role="alert"></p>
-    </section>
-
-    <section class="m3-card" aria-labelledby="h-items" style="--i:2">
-      <div class="m3-card-head">
-        <span class="m3-num">3</span>
-        <h2 id="h-items" class="m3-title">Items</h2>
-      </div>
-      <ul id="items-list" class="m3-list"></ul>
-    </section>
-
-    <section class="m3-card m3-card-accent" aria-labelledby="h-results" style="--i:3">
-      <div class="m3-card-head">
-        <span class="m3-num">4</span>
-        <h2 id="h-results" class="m3-title">Results</h2>
-      </div>
+    <!-- ============ RIGHT RAIL ============ -->
+    <aside class="rail" id="h-settle">
       <div id="results"></div>
-    </section>
-
-    <footer class="m3-footer">vvsplit · Python in the browser, no server</footer>
-  </main>
+    </aside>
+  </div>
 
   <script type="mpy" src="./main.py" config="./pyscript.toml"></script>
 </body>

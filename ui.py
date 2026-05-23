@@ -3,6 +3,12 @@
 State flow: handler -> mutate AppState -> storage.save -> re-render regions.
 Dynamic content is built with createElement + textContent (no innerHTML),
 so user-entered names cannot inject markup.
+
+Workspace design notes:
+- Chip toggle (.chip on/off) and uneven-mode weight input visibility are
+  driven by CSS :has() against the native <input> states — no JS toggling.
+- Avatars are deterministic per person id (4-color palette) so colors are
+  stable across renders without storing them in the model.
 """
 
 from pyscript import document, window
@@ -58,15 +64,6 @@ def _money(cents):
     return "$%.2f" % (cents / 100.0)
 
 
-def _row(label, amount=None, cls="entry"):
-    """A ledger row: a label on the left, an optional money figure right."""
-    li = _el("li", None, cls)
-    li.appendChild(_el("span", label, "label"))
-    if amount is not None:
-        li.appendChild(_el("span", amount, "amount"))
-    return li
-
-
 def _next_id(prefix):
     global _id_counter
     _id_counter += 1
@@ -84,7 +81,7 @@ def _seed_counter():
     _id_counter = biggest
 
 
-# ---------- rendering ----------
+# ---------- workspace helpers ----------
 
 def _people_by_id():
     return {p.id: p for p in _state.people}
@@ -95,6 +92,59 @@ def _name(by_id, pid):
     return person.name if person else "?"
 
 
+def _first_name(name):
+    parts = (name or "").strip().split()
+    return parts[0] if parts else (name or "?")
+
+
+def _initials(name):
+    parts = (name or "").strip().split()
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][:1] + parts[-1][:1]).upper()
+
+
+def _av_class(pid):
+    # Deterministic 1..4 from id so colors are stable across renders.
+    h = 0
+    for ch in (pid or ""):
+        h = (h * 31 + ord(ch)) & 0xFFFF
+    return "av-%d" % (h % 4 + 1)
+
+
+def _av(pid, name, small=True):
+    cls = "av av-sm " + _av_class(pid) if small else "av " + _av_class(pid)
+    return _el("span", _initials(name), cls)
+
+
+def _paid_by_person():
+    """{person_id: cents this person has paid out across items}."""
+    paid = {p.id: 0 for p in _state.people}
+    for it in _state.items:
+        if it.payer_id in paid:
+            paid[it.payer_id] += it.amount_cents
+    return paid
+
+
+def _fmt_weight(w):
+    try:
+        if w == int(w):
+            return str(int(w))
+        return ("%.2f" % float(w)).rstrip("0").rstrip(".")
+    except (ValueError, TypeError):
+        return "0"
+
+
+def _weights_summary(item):
+    ws = item.weights()
+    parts = [_fmt_weight(ws.get(pid, 0)) for pid in item.participant_ids]
+    return "·".join(parts)
+
+
+# ---------- rendering ----------
+
 def render_all():
     for proxy in _render_proxies:
         try:
@@ -102,23 +152,45 @@ def render_all():
         except Exception:
             pass
     _render_proxies.clear()
-    _render_people()
+
+    by_id = _people_by_id()
+    paid = _paid_by_person()
+    try:
+        totals = per_person_totals(_state)
+    except Exception as e:
+        window.console.warn("vvsplit: totals failed: " + str(e))
+        totals = {}
+    try:
+        transfers = settle_up(_state)
+    except Exception as e:
+        window.console.warn("vvsplit: settle-up failed: " + str(e))
+        transfers = []
+
+    _render_people(paid)
     _render_item_form()
-    _render_items()
-    _render_results()
+    _render_items(by_id)
+    _render_results(by_id, totals, transfers)
+    _render_kpis(paid, transfers)
+    _render_nav_counts(transfers)
+    _render_supporting(transfers)
 
 
-def _render_people():
+def _render_people(paid):
     box = _qs("#people-list")
     _clear(box)
     if not _state.people:
-        box.appendChild(_el("li", "No people yet.", "muted"))
+        li = _el("li", "No one yet — add a name below.", "muted")
+        box.appendChild(li)
     for person in _state.people:
-        li = _el("li", None, "entry")
-        li.appendChild(_el("span", person.name, "label"))
-        btn = _el("button", "remove", "link")
-        _on(btn, "click", _make_remove_person(person.id))
-        li.appendChild(btn)
+        li = _el("li")
+        li.appendChild(_av(person.id, person.name, True))
+        li.appendChild(_el("span", person.name, "nm"))
+        li.appendChild(_el("span", _money(paid.get(person.id, 0)), "paid num"))
+        rm = _el("button", "×", "rm")
+        rm.title = "Remove"
+        rm.setAttribute("aria-label", "Remove " + person.name)
+        _on(rm, "click", _make_remove_person(person.id))
+        li.appendChild(rm)
         box.appendChild(li)
     _qs("#people-error").textContent = ""
 
@@ -126,6 +198,10 @@ def _render_people():
 def _render_item_form():
     payer = _qs("#payer-select")
     _clear(payer)
+    if not _state.people:
+        placeholder = _el("option", "Add people first")
+        placeholder.disabled = True
+        payer.appendChild(placeholder)
     for person in _state.people:
         opt = _el("option", person.name)
         opt.value = person.id
@@ -133,15 +209,18 @@ def _render_item_form():
 
     parts = _qs("#participants")
     _clear(parts)
-    uneven = _qs("#mode-uneven").checked
+    if not _state.people:
+        parts.appendChild(_el("span", "Add people first.", "empty"))
+        return
     for person in _state.people:
-        row = _el("label", None, "participant")
+        chip = _el("label", None, "chip")
         cb = _el("input")
         cb.type = "checkbox"
         cb.value = person.id
         cb.className = "p-check"
-        row.appendChild(cb)
-        row.appendChild(_el("span", " " + person.name))
+        chip.appendChild(cb)
+        chip.appendChild(_av(person.id, person.name, True))
+        chip.appendChild(_el("span", _first_name(person.name)))
         wt = _el("input")
         wt.type = "number"
         wt.value = "1"
@@ -149,68 +228,211 @@ def _render_item_form():
         wt.step = "any"
         wt.className = "p-weight"
         wt.setAttribute("data-pid", person.id)
-        wt.style.display = "inline" if uneven else "none"
-        row.appendChild(wt)
-        parts.appendChild(row)
+        wt.setAttribute("aria-label", "Weight for " + person.name)
+        chip.appendChild(wt)
+        parts.appendChild(chip)
 
 
-def _render_items():
+def _render_items(by_id):
     box = _qs("#items-list")
     _clear(box)
     if not _state.items:
-        box.appendChild(_el("li", "No items yet.", "muted"))
-    by_id = _people_by_id()
+        li = _el("li", "No items yet — add an expense below.", "muted")
+        box.appendChild(li)
+        return
     for it in _state.items:
+        li = _el("li", None, "table-row")
+
+        li.appendChild(_el("span", "$", "item-icon"))
+
+        body = _el("div", None, "body")
+        body.appendChild(_el("div", it.description, "item-title"))
         names = [_name(by_id, pid) for pid in it.participant_ids]
-        meta = "%s · paid by %s · split among %s · %s" % (
-            it.description,
-            _name(by_id, it.payer_id),
-            ", ".join(names),
-            it.split_mode(),
-        )
-        li = _el("li", None, "entry")
-        li.appendChild(_el("span", meta, "label"))
-        li.appendChild(_el("span", _money(it.amount_cents), "amount"))
-        btn = _el("button", "delete", "link")
-        _on(btn, "click", _make_remove_item(it.id))
-        li.appendChild(btn)
+        body.appendChild(_el("div", "Among " + ", ".join(names),
+                             "item-among"))
+        li.appendChild(body)
+
+        pb = _el("div", None, "paid-by")
+        payer = by_id.get(it.payer_id)
+        if payer is not None:
+            pb.appendChild(_av(payer.id, payer.name, True))
+            pb.appendChild(_el("span", _first_name(payer.name), "nm"))
+        else:
+            pb.appendChild(_el("span", "?", "nm"))
+        li.appendChild(pb)
+
+        bwrap = _el("div", None, "badge-cell")
+        if it.split_mode() == MODE_UNEVEN:
+            bwrap.appendChild(
+                _el("span", "Uneven · " + _weights_summary(it),
+                    "badge uneven")
+            )
+        else:
+            bwrap.appendChild(_el("span", "Equally", "badge"))
+        li.appendChild(bwrap)
+
+        li.appendChild(_el("span", _money(it.amount_cents), "amt num"))
+
+        rm = _el("button", "✕", "btn-x")
+        rm.title = "Remove"
+        rm.setAttribute("aria-label", "Remove item")
+        _on(rm, "click", _make_remove_item(it.id))
+        li.appendChild(rm)
+
         box.appendChild(li)
 
 
-def _render_results():
+def _render_results(by_id, totals, transfers):
     box = _qs("#results")
     _clear(box)
 
-    # Defensive: a poisoned/hand-edited state must degrade to an empty
-    # result, never brick the whole UI on load. Failures are logged.
-    try:
-        totals = per_person_totals(_state)
-    except Exception as e:
-        window.console.warn("vvsplit: totals failed: " + str(e))
-        totals = {}
-    box.appendChild(_el("h3", "Each person's share"))
-    ul = _el("ul", None, "ledger")
-    if not totals:
-        ul.appendChild(_el("li", "Nothing to total yet.", "muted"))
-    for person in _state.people:
-        ul.appendChild(_row(person.name, _money(totals.get(person.id, 0))))
-    box.appendChild(ul)
+    # Total block
+    total_cents = sum(i.amount_cents for i in _state.items)
+    block = _el("div", None, "total-block")
+    block.appendChild(_el("div", "Total billed", "lbl"))
+    big = _el("div", None, "big")
+    big.appendChild(_el("span", "$", "currency"))
+    big.appendChild(_el("span", "%.2f" % (total_cents / 100.0), "num"))
+    block.appendChild(big)
+    n_items = len(_state.items)
+    n_people = len(_state.people)
+    meta = "across %d %s, %d %s" % (
+        n_items, "item" if n_items == 1 else "items",
+        n_people, "person" if n_people == 1 else "people",
+    )
+    block.appendChild(_el("div", meta, "meta"))
+    box.appendChild(block)
 
-    box.appendChild(_el("h3", "Settle up"))
-    try:
-        transfers = settle_up(_state)
-    except Exception as e:
-        window.console.warn("vvsplit: settle-up failed: " + str(e))
-        transfers = []
-    ul2 = _el("ul", None, "ledger")
+    # Each share
+    shares_sec = _el("div")
+    shares_sec.appendChild(_el("h3", "Each share"))
+    if not _state.people:
+        shares_sec.appendChild(_el("p", "Add people to see shares.", "muted"))
+    else:
+        max_share = 0
+        for p in _state.people:
+            v = totals.get(p.id, 0)
+            if v > max_share:
+                max_share = v
+        ul = _el("ul", None, "rail-shares")
+        people_sorted = sorted(
+            _state.people, key=lambda p: -totals.get(p.id, 0))
+        for idx, person in enumerate(people_sorted):
+            share = totals.get(person.id, 0)
+            li = _el("li")
+            li.appendChild(_av(person.id, person.name, True))
+            wrap = _el("div")
+            row = _el("div", None, "row")
+            row.appendChild(_el("span", _first_name(person.name), "nm"))
+            row.appendChild(_el("span", _money(share), "a num"))
+            wrap.appendChild(row)
+            bar = _el("div", None, "bar")
+            fill = _el("span", None, "bar-fill")
+            scale = (share / max_share) if max_share > 0 else 0.0
+            fill.style.setProperty("--scale", "%.3f" % scale)
+            fill.style.setProperty("--d", "%dms" % (100 + idx * 40))
+            bar.appendChild(fill)
+            wrap.appendChild(bar)
+            li.appendChild(wrap)
+            ul.appendChild(li)
+        shares_sec.appendChild(ul)
+    box.appendChild(shares_sec)
+
+    # Settle up
+    settle_sec = _el("div")
+    n_t = len(transfers)
+    settle_sec.appendChild(
+        _el("h3", "Settle up · %d %s"
+            % (n_t, "transfer" if n_t == 1 else "transfers"))
+    )
     if not transfers:
-        ul2.appendChild(_el("li", "All settled — no transfers needed.",
-                            "muted"))
-    by_id = _people_by_id()
-    for debtor, creditor, amount in transfers:
-        label = "%s → %s" % (_name(by_id, debtor), _name(by_id, creditor))
-        ul2.appendChild(_row(label, _money(amount)))
-    box.appendChild(ul2)
+        settle_sec.appendChild(
+            _el("p", "All settled — no transfers needed.", "muted")
+        )
+    for debtor_id, creditor_id, amount in transfers:
+        d = by_id.get(debtor_id)
+        c = by_id.get(creditor_id)
+        card = _el("div", None, "transfer-card")
+        ft = _el("div", None, "from-to")
+        if d is not None:
+            ft.appendChild(_av(d.id, d.name, True))
+        ft.appendChild(_el("span", _first_name(d.name) if d else "?", "nm"))
+        ft.appendChild(_el("span", "→", "arr"))
+        if c is not None:
+            ft.appendChild(_av(c.id, c.name, True))
+        ft.appendChild(_el("span", _first_name(c.name) if c else "?", "nm"))
+        card.appendChild(ft)
+        card.appendChild(_el("span", _money(amount), "amt num"))
+        settle_sec.appendChild(card)
+    box.appendChild(settle_sec)
+
+
+def _render_kpis(paid, transfers):
+    total_cents = sum(i.amount_cents for i in _state.items)
+    n_items = len(_state.items)
+    n_people = len(_state.people)
+
+    _qs("#kpi-total").textContent = _money(total_cents)
+    _qs("#kpi-total-sub").textContent = (
+        "%d %s" % (n_items, "item" if n_items == 1 else "items"))
+
+    if n_people > 0:
+        avg_cents = total_cents // n_people
+        _qs("#kpi-avg").textContent = _money(avg_cents)
+        _qs("#kpi-avg-sub").textContent = (
+            "over %d %s" % (n_people, "head" if n_people == 1 else "heads"))
+    else:
+        _qs("#kpi-avg").textContent = _money(0)
+        _qs("#kpi-avg-sub").textContent = "over 0 heads"
+
+    # Top contributor
+    top_id = None
+    top_amount = 0
+    for pid, amt in paid.items():
+        if amt > top_amount:
+            top_amount = amt
+            top_id = pid
+    if top_id is not None and top_amount > 0:
+        top_person = _state.person_by_id(top_id)
+        _qs("#kpi-top").textContent = (
+            _first_name(top_person.name) if top_person else "—")
+        _qs("#kpi-top-sub").textContent = "paid " + _money(top_amount)
+    else:
+        _qs("#kpi-top").textContent = "—"
+        _qs("#kpi-top-sub").textContent = "no payments yet"
+
+    n_t = len(transfers)
+    _qs("#kpi-transfers").textContent = str(n_t)
+    _qs("#kpi-transfers-sub").textContent = (
+        "all settled" if n_t == 0
+        else ("to fully settle" if n_t > 1 else "to settle the bill"))
+
+
+def _render_nav_counts(transfers):
+    _qs("#count-items").textContent = str(len(_state.items))
+    _qs("#count-people").textContent = str(len(_state.people))
+    _qs("#count-settle").textContent = str(len(transfers))
+
+
+def _render_supporting(transfers):
+    n_items = len(_state.items)
+    n_people = len(_state.people)
+    n_t = len(transfers)
+    if n_items == 0 and n_people == 0:
+        msg = "Add people, then add items. Splits and settle-up update live."
+    elif n_items == 0:
+        msg = ("%d %s, no items yet." %
+               (n_people, "person" if n_people == 1 else "people"))
+    elif n_t == 0:
+        msg = ("%d %s billed across %d %s. All settled." %
+               (n_items, "item" if n_items == 1 else "items",
+                n_people, "person" if n_people == 1 else "people"))
+    else:
+        msg = ("%d %s billed across %d %s. %d %s will settle the bill." %
+               (n_items, "item" if n_items == 1 else "items",
+                n_people, "person" if n_people == 1 else "people",
+                n_t, "transfer" if n_t == 1 else "transfers"))
+    _qs("#page-supporting").textContent = msg
 
 
 def _persist_and_render():
@@ -252,10 +474,6 @@ def _make_remove_person(pid):
         _state.people = [p for p in _state.people if p.id != pid]
         _persist_and_render()
     return handler
-
-
-def on_mode_change(event):
-    _render_item_form()
 
 
 def _select_share_field(event):
@@ -343,8 +561,6 @@ def start(state, storage_module):
     _seed_counter()
     _on(_qs("#add-person"), "click", on_add_person, track=False)
     _on(_qs("#add-item"), "click", on_add_item, track=False)
-    _on(_qs("#mode-equal"), "change", on_mode_change, track=False)
-    _on(_qs("#mode-uneven"), "change", on_mode_change, track=False)
     parts = _qs("#participants")
     _on(parts, "focusin", _select_share_field, track=False)
     _on(parts, "click", _select_share_field, track=False)
