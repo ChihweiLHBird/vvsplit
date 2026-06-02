@@ -1,0 +1,8 @@
+name: vvsplit
+description: vvsplit — Cloudflare Worker (static assets), Pulumi + Python
+runtime:
+  name: python
+  options:
+    # Pulumi auto-creates this venv and installs requirements.txt into it,
+    # so pip never runs outside a venv.
+    virtualenv: venv

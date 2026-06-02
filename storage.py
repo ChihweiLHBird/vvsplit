@@ -10,7 +10,14 @@ KEY = "vvsplit"
 
 
 def load():
-    raw = window.localStorage.getItem(KEY)
+    # localStorage access itself can throw (Safari private mode or
+    # third-party-storage blocked → SecurityError). Treat as "no saved
+    # data" rather than letting it propagate and brick page boot.
+    try:
+        raw = window.localStorage.getItem(KEY)
+    except Exception as e:
+        window.console.warn("vvsplit: localStorage unavailable: " + str(e))
+        return AppState()
     if raw is None:
         return AppState()
     try:

@@ -4,8 +4,20 @@ Plain classes (no dataclasses) so this runs identically under CPython and
 MicroPython. Money is integer cents everywhere; formatting happens in the UI.
 """
 
+import sys
+
 MODE_EQUAL = "equal"
 MODE_UNEVEN = "uneven"
+
+
+def _warn_skip(kind, exc):
+    # Surface dropped records so silent data loss / dev-time API breaks
+    # are visible. PyScript routes stderr to the browser console.
+    try:
+        print("vvsplit: skipped malformed " + kind + " record: " + str(exc),
+              file=sys.stderr)
+    except Exception:
+        pass
 
 
 class Person:
@@ -61,23 +73,51 @@ class Item:
 
     @staticmethod
     def from_dict(d):
-        pids = d.get("participant_ids", [])
-        if not isinstance(pids, list):
-            pids = []
+        # Dedup participants in source order. Without this, hand-edited
+        # or corrupted state with duplicate ids would silently lose
+        # money: both split paths key shares by participant_id, so a
+        # repeat overwrites the prior share instead of representing a
+        # second portion. The UI's checkbox-based picker can't produce
+        # duplicates, but the model layer is the trust boundary.
+        raw_pids = d.get("participant_ids", [])
+        if not isinstance(raw_pids, list):
+            raw_pids = []
+        seen = set()
+        pids = []
+        for p in raw_pids:
+            s = str(p)
+            if s not in seen:
+                seen.add(s)
+                pids.append(s)
+
+        # Normalize split.mode. Anything not in the known set would
+        # raise from split_item() later; render_all() catches that and
+        # zeros the results, so the UI looks healthy while the numbers
+        # are wrong. Clamp here instead.
         split = d.get("split", {})
         if not isinstance(split, dict):
             split = {"mode": MODE_EQUAL}
+        if split.get("mode") not in (MODE_EQUAL, MODE_UNEVEN):
+            split = {"mode": MODE_EQUAL}
+
         amount = d.get("amount_cents", 0)
         # bool is an int subclass; exclude it. Reject non-int (e.g. strings
         # from hand-edited storage) so downstream cent math can't crash.
         if isinstance(amount, bool) or not isinstance(amount, int):
             amount = 0
+        # Reject negative amounts at the boundary. Equal split conserves
+        # money for negatives, but the uneven path uses int() truncation
+        # which truncates toward zero and leaks one cent per share. The
+        # UI enforces amount > 0; this guards storage tampering.
+        if amount < 0:
+            amount = 0
+
         return Item(
             str(d.get("id", "")),
             str(d.get("description", "")),
             amount,
             str(d.get("payer_id", "")),
-            [str(p) for p in pids],
+            pids,
             split,
         )
 
@@ -111,17 +151,51 @@ class AppState:
     def from_dict(d):
         if not isinstance(d, dict):
             return AppState()
-        # Skip individual bad records rather than discarding all saved state.
+        # Skip individual bad records rather than discarding all saved
+        # state. Each skip is logged to stderr so silent data loss is
+        # visible in the browser console.
         people = []
         for p in d.get("people", []) or []:
             try:
                 people.append(Person.from_dict(p))
-            except Exception:
-                pass
+            except Exception as e:
+                _warn_skip("person", e)
+
+        valid_pids = {p.id for p in people}
         items = []
         for i in d.get("items", []) or []:
             try:
-                items.append(Item.from_dict(i))
-            except Exception:
-                pass
+                it = Item.from_dict(i)
+            except Exception as e:
+                _warn_skip("item", e)
+                continue
+            # Drop items that reference unknown people. Without this,
+            # per_person_totals counts unknown ids but settle_up only
+            # walks state.people, so debts/credits to a missing person
+            # silently disappear from the transfer plan.
+            if it.payer_id not in valid_pids:
+                _warn_skip("item", "payer '%s' not in roster" % it.payer_id)
+                continue
+            kept = [pid for pid in it.participant_ids if pid in valid_pids]
+            if not kept:
+                _warn_skip("item", "no known participants")
+                continue
+            if len(kept) != len(it.participant_ids):
+                _warn_skip(
+                    "item",
+                    "dropped unknown participants from '%s'" % it.description,
+                )
+                it.participant_ids = kept
+                if it.split.get("mode") == MODE_UNEVEN:
+                    weights = it.split.get("weights", {})
+                    if isinstance(weights, dict):
+                        it.split = {
+                            "mode": MODE_UNEVEN,
+                            "weights": {
+                                pid: w
+                                for pid, w in weights.items()
+                                if pid in valid_pids
+                            },
+                        }
+            items.append(it)
         return AppState(people=people, items=items)

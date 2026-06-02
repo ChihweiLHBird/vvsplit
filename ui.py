@@ -14,11 +14,17 @@ Workspace design notes:
 from pyscript import document, window
 from pyscript.ffi import create_proxy
 
-from splitcore.calc import parse_finite, per_person_totals, settle_up
+from splitcore.calc import (
+    parse_cents,
+    parse_finite,
+    per_person_totals,
+    settle_up,
+)
 from splitcore.model import MODE_EQUAL, MODE_UNEVEN, Item, Person
 
-# Reject absurd magnitudes early (a finite 1e308 still poisons later math).
-_MAX_AMOUNT = 1e9  # dollars
+# Reject absurd magnitudes early. parse_cents returns int cents; cap is
+# expressed in cents to compare without re-converting.
+_MAX_CENTS = 10 ** 11  # $1,000,000,000.00
 
 _state = None
 _storage = None
@@ -61,7 +67,9 @@ def _on(node, event, handler, track=True):
 
 
 def _money(cents):
-    return "$%.2f" % (cents / 100.0)
+    # Place the sign before the currency, not between '$' and the digits.
+    sign = "-" if cents < 0 else ""
+    return "%s$%.2f" % (sign, abs(cents) / 100.0)
 
 
 def _next_id(prefix):
@@ -145,12 +153,20 @@ def _weights_summary(item):
 
 # ---------- rendering ----------
 
+def _safe(name, fn):
+    """Run a renderer; log + swallow exceptions so one bad sub-render
+    can't leave the page half-built with dead handlers."""
+    try:
+        fn()
+    except Exception as e:
+        window.console.warn("vvsplit: " + name + " render failed: " + str(e))
+
+
 def render_all():
-    for proxy in _render_proxies:
-        try:
-            proxy.destroy()
-        except Exception:
-            pass
+    # Snapshot the OLD proxies. We destroy them AFTER the new render so
+    # we never invalidate a handler whose Python frame is still on the
+    # stack (this function is itself called from those handlers).
+    old_proxies = list(_render_proxies)
     _render_proxies.clear()
 
     by_id = _people_by_id()
@@ -166,13 +182,21 @@ def render_all():
         window.console.warn("vvsplit: settle-up failed: " + str(e))
         transfers = []
 
-    _render_people(paid)
-    _render_item_form()
-    _render_items(by_id)
-    _render_results(by_id, totals, transfers)
-    _render_kpis(paid, transfers)
-    _render_nav_counts(transfers)
-    _render_supporting(transfers)
+    _safe("people", lambda: _render_people(paid))
+    _safe("item form", _render_item_form)
+    _safe("items", lambda: _render_items(by_id))
+    _safe("results", lambda: _render_results(by_id, totals, transfers))
+    _safe("kpis", lambda: _render_kpis(paid, transfers))
+    _safe("supporting", lambda: _render_supporting(transfers))
+
+    # Old proxies' DOM nodes have just been replaced by _clear() inside
+    # each renderer; destroying them now is safe and frees the JS-side
+    # proxy table.
+    for proxy in old_proxies:
+        try:
+            proxy.destroy()
+        except Exception:
+            pass
 
 
 def _render_people(paid):
@@ -275,7 +299,11 @@ def _render_items(by_id):
 
         rm = _el("button", "✕", "btn-x")
         rm.title = "Remove"
-        rm.setAttribute("aria-label", "Remove item")
+        # Include the description so screen-reader users can tell delete
+        # buttons apart in a long list. Fall back to a generic label if
+        # the description is empty.
+        rm.setAttribute(
+            "aria-label", "Remove " + (it.description or "item"))
         _on(rm, "click", _make_remove_item(it.id))
         li.appendChild(rm)
 
@@ -385,13 +413,16 @@ def _render_kpis(paid, transfers):
         _qs("#kpi-avg").textContent = _money(0)
         _qs("#kpi-avg-sub").textContent = "over 0 heads"
 
-    # Top contributor
+    # Top contributor — iterate _state.people (list order, stable across
+    # renders) so ties resolve deterministically on every runtime,
+    # including MicroPython where dict iteration order isn't guaranteed.
     top_id = None
     top_amount = 0
-    for pid, amt in paid.items():
+    for person in _state.people:
+        amt = paid.get(person.id, 0)
         if amt > top_amount:
             top_amount = amt
-            top_id = pid
+            top_id = person.id
     if top_id is not None and top_amount > 0:
         top_person = _state.person_by_id(top_id)
         _qs("#kpi-top").textContent = (
@@ -406,12 +437,6 @@ def _render_kpis(paid, transfers):
     _qs("#kpi-transfers-sub").textContent = (
         "all settled" if n_t == 0
         else ("to fully settle" if n_t > 1 else "to settle the bill"))
-
-
-def _render_nav_counts(transfers):
-    _qs("#count-items").textContent = str(len(_state.items))
-    _qs("#count-people").textContent = str(len(_state.people))
-    _qs("#count-settle").textContent = str(len(transfers))
 
 
 def _render_supporting(transfers):
@@ -435,14 +460,46 @@ def _render_supporting(transfers):
     _qs("#page-supporting").textContent = msg
 
 
+def _set_save_status(ok, detail=""):
+    """Reflect save-attempt outcome in the topbar's Saved pill so users
+    can't believe their data is durable while saves are silently
+    failing. Updates text, color (via .err class), and title tooltip."""
+    pill = _qs(".saved-pill")
+    if pill is None:
+        return
+    label = pill.querySelector(".saved-label")
+    if ok:
+        try:
+            pill.classList.remove("err")
+        except Exception:
+            pass
+        if label is not None:
+            label.textContent = "Saved · localStorage"
+        pill.title = "State is saved locally in your browser"
+    else:
+        try:
+            pill.classList.add("err")
+        except Exception:
+            pass
+        if label is not None:
+            label.textContent = "Save failed"
+        msg = "Could not save to localStorage"
+        if detail:
+            msg += ": " + detail
+        pill.title = msg
+
+
 def _persist_and_render():
-    """Save then re-render. A storage failure (quota, private mode) must not
-    desync memory from the DOM or surface a traceback — log and still render.
-    """
+    """Save then re-render. A storage failure (quota, private mode) must
+    not desync memory from the DOM or surface a traceback. We log,
+    flip the pill to show the failure, and still render so the user
+    can keep working in-memory."""
     try:
         _storage.save(_state)
+        _set_save_status(True)
     except Exception as e:
         window.console.warn("vvsplit: could not save: " + str(e))
+        _set_save_status(False, str(e))
     render_all()
 
 
@@ -477,12 +534,30 @@ def _make_remove_person(pid):
 
 
 def _select_share_field(event):
-    """Select a share field's text on focus/click so the value can be
-    replaced with one keystroke. Delegated from the persistent
-    #participants container, so it survives form re-renders."""
+    """Select a share field's text on focus so the value can be replaced
+    with one keystroke. We defer via setTimeout(0) so mouseup (which
+    fires after focus and would otherwise clear the selection) runs
+    first. Bound only to focusin — a click listener would re-select on
+    every subsequent click in the focused field and block caret
+    positioning."""
     el = event.target
-    if el.classList.contains("p-weight"):
-        el.select()
+    if not el.classList.contains("p-weight"):
+        return
+    proxy_box = []
+
+    def _do_select(*_args):
+        try:
+            el.select()
+        finally:
+            if proxy_box:
+                try:
+                    proxy_box[0].destroy()
+                except Exception:
+                    pass
+
+    p = create_proxy(_do_select)
+    proxy_box.append(p)
+    window.setTimeout(p, 0)
 
 
 def on_add_item(event):
@@ -494,14 +569,13 @@ def on_add_item(event):
         err.textContent = "Enter a description."
         return
 
-    amount = parse_finite(_qs("#item-amount").value.strip())
-    if amount is None:
+    amount_cents = parse_cents(_qs("#item-amount").value)
+    if amount_cents is None:
         err.textContent = "Amount must be a number."
         return
-    if amount > _MAX_AMOUNT:
+    if amount_cents > _MAX_CENTS:
         err.textContent = "Amount is unreasonably large."
         return
-    amount_cents = int(round(amount * 100))
     if amount_cents <= 0:
         err.textContent = "Amount must be greater than zero."
         return
@@ -554,6 +628,36 @@ def _make_remove_item(iid):
 
 # ---------- entry ----------
 
+def _register_service_worker():
+    """Install the PWA cache layer. Browsers gate Service Worker support
+    on HTTPS or localhost, so registration silently no-ops on file:// or
+    insecure origins — that's expected, not an error."""
+    try:
+        sw = window.navigator.serviceWorker
+    except Exception:
+        return
+    if not sw:
+        return
+    try:
+        promise = sw.register("./sw.js")
+    except Exception as e:
+        window.console.warn("vvsplit: sw register threw: " + str(e))
+        return
+
+    def _ok(_reg):
+        window.console.log("vvsplit: service worker registered")
+
+    def _err(e):
+        window.console.warn("vvsplit: service worker failed: " + str(e))
+
+    try:
+        promise.then(create_proxy(_ok), create_proxy(_err))
+    except Exception:
+        # .then() shape varies across PyScript runtimes; logging is
+        # best-effort. The registration itself has already kicked off.
+        pass
+
+
 def start(state, storage_module):
     global _state, _storage
     _state = state
@@ -563,8 +667,8 @@ def start(state, storage_module):
     _on(_qs("#add-item"), "click", on_add_item, track=False)
     parts = _qs("#participants")
     _on(parts, "focusin", _select_share_field, track=False)
-    _on(parts, "click", _select_share_field, track=False)
     render_all()
     boot = _qs("#boot-msg")
     if boot:
         boot.remove()
+    _register_service_worker()

@@ -1,0 +1,89 @@
+name: Deploy
+
+# `pulumi up` uploads the Worker's static assets (pulumi-cloudflare, bridged
+# from the CF v5 provider), so the deploy IS pulumi up — no wrangler.
+# Bootstrap/secrets: see infra/README.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'plan (preview) or apply (deploy)'
+        required: true
+        default: 'plan'
+        type: choice
+        options: [plan, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # No secrets in scope — a PR (even one editing this file) can't exfiltrate.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Syntax check
+        run: |
+          python -m py_compile main.py ui.py storage.py splitcore/*.py
+          python -m py_compile infra/__main__.py
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests
+
+      - name: JS-free audit
+        run: |
+          n=$(grep -c '<script' index.html)
+          [ "$n" = "2" ] || { echo "::error::expected 2 script tags, got $n"; exit 1; }
+          stray=$(find . -name '*.js' -not -path './.git/*' -not -path './dist/*' ! -path './sw.js')
+          [ -z "$stray" ] || { echo "::error::unexpected .js: $stray"; exit 1; }
+
+  # Privileged: push to main or manual dispatch. Holds secrets, env-gated.
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment: production # add required reviewers in repo settings
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Object Storage (Linode) key for the Pulumi DIY S3 state backend.
+      AWS_ACCESS_KEY_ID: ${{ secrets.OBJECT_STORAGE_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+      # Encrypts secrets in Pulumi state.
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Stage dist/
+        run: ./scripts/stage-assets.sh
+
+      - name: Stamp CACHE_VERSION with commit SHA
+        run: |
+          sed -i "s|const CACHE_VERSION = '.*';|const CACHE_VERSION = 'vvsplit-${GITHUB_SHA::8}';|" dist/sw.js
+          grep -n CACHE_VERSION dist/sw.js
+
+      # preview on dispatch+plan; up on push to main or dispatch+apply.
+      - uses: pulumi/actions@v7
+        with:
+          command: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') && 'preview' || 'up' }}
+          stack-name: production
+          work-dir: infra
+          cloud-url: s3://${{ vars.PULUMI_STATE_BUCKET || 'vvsplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1&s3ForcePathStyle=true

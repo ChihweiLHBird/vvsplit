@@ -13,11 +13,11 @@ def parse_finite(x):
     Single source of truth for the untrusted-input boundary: amounts/weights
     arrive from typed input or hand-edited localStorage. MicroPython lacks
     math.isfinite, so detect NaN via self-inequality and inf via abs().
-    Returning the parsed value lets callers avoid a second float() parse.
+    OverflowError can come from MicroPython float() on huge magnitudes.
     """
     try:
         f = float(x)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
         return None
     return f if (f == f and abs(f) != float("inf")) else None
 
@@ -25,6 +25,37 @@ def parse_finite(x):
 def is_finite_number(x):
     """True only for a real, finite number. Rejects NaN and +/-inf."""
     return parse_finite(x) is not None
+
+
+def parse_cents(raw):
+    """Parse a money string to exact integer cents, or None.
+
+    String-based: no float arithmetic, so values like '0.295' do NOT lose
+    a half-cent the way int(round(float('0.295') * 100)) does. Truncates
+    fractional digits past 2 (not banker's-round); pads with zeros if the
+    user typed fewer than 2. Accepts an optional leading sign.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return None
+    neg = False
+    if s[0] in "+-":
+        neg = s[0] == "-"
+        s = s[1:]
+    if not s or s == "." or s.count(".") > 1:
+        return None
+    if "." in s:
+        whole, frac = s.split(".", 1)
+    else:
+        whole, frac = s, ""
+    if whole and not whole.isdigit():
+        return None
+    if frac and not frac.isdigit():
+        return None
+    if not whole and not frac:
+        return None
+    cents = int(whole or "0") * 100 + int((frac + "00")[:2])
+    return -cents if neg else cents
 
 
 def _equal_shares(participants, amount):

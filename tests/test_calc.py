@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from splitcore.calc import (
     is_finite_number,
+    parse_cents,
     parse_finite,
     per_person_totals,
     settle_up,
@@ -243,6 +244,26 @@ class HardeningTests(unittest.TestCase):
         for bad in ("inf", "nan", "1e400", "abc", "", None):
             self.assertIsNone(parse_finite(bad))
 
+    def test_parse_cents_exact_no_float_drift(self):
+        # The canonical IEEE-754 cents bug: int(round(float('0.295')*100))
+        # gives 29, losing a half-cent. parse_cents must return 29 only by
+        # truncation policy (3rd decimal dropped), NOT by float drift.
+        self.assertEqual(parse_cents("0.295"), 29)
+        self.assertEqual(parse_cents("0.29"), 29)
+        self.assertEqual(parse_cents("1.005"), 100)  # truncates, never drifts
+        self.assertEqual(parse_cents("12"), 1200)
+        self.assertEqual(parse_cents("12.5"), 1250)
+        self.assertEqual(parse_cents("12.50"), 1250)
+        self.assertEqual(parse_cents("0.5"), 50)
+        self.assertEqual(parse_cents(".5"), 50)
+        self.assertEqual(parse_cents("-3.14"), -314)
+        self.assertEqual(parse_cents("  12.34  "), 1234)
+
+    def test_parse_cents_rejects(self):
+        for bad in ("", "   ", ".", "abc", "1,5", "1.2.3", "1e3",
+                    "inf", "nan", "+-1", None):
+            self.assertIsNone(parse_cents(bad), bad)
+
     def test_uneven_inf_weight_falls_back_not_crash(self):
         shares = split_item(item(900, ["a", "b", "c"],
                                  split=uneven({"a": "inf", "b": 1, "c": 1})))
@@ -262,6 +283,8 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(split_item(it), {"a": 100, "b": 100, "c": 100})
 
     def test_from_dict_skips_bad_record_and_coerces(self):
+        # Item is given valid people refs so the orphan filter doesn't
+        # drop it; this test stays focused on type-coercion behavior.
         raw = {
             "people": [
                 {"id": 1, "name": "Alice"},          # non-str -> coerced
@@ -270,7 +293,7 @@ class HardeningTests(unittest.TestCase):
             ],
             "items": [
                 {"id": "i1", "description": "ok", "amount_cents": "5",
-                 "payer_id": "a", "participant_ids": "xy", "split": 7},
+                 "payer_id": "1", "participant_ids": ["1", "c"], "split": 7},
             ],
         }
         state = AppState.from_dict(raw)
@@ -278,12 +301,112 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(ids, ["1", "c"])  # bad record dropped, id stringified
         it = state.items[0]
         self.assertEqual(it.amount_cents, 0)            # non-int coerced
-        self.assertEqual(it.participant_ids, [])        # non-list coerced
         self.assertEqual(it.split_mode(), MODE_EQUAL)   # non-dict split safe
 
     def test_from_dict_non_dict_input(self):
         self.assertEqual(AppState.from_dict("garbage").to_dict(),
                          {"people": [], "items": []})
+
+
+class FromDictBoundaryTests(unittest.TestCase):
+    """Persisted state arrives from localStorage and may be hand-edited
+    or corrupted. AppState.from_dict / Item.from_dict are the trust
+    boundary; these tests pin the hardening behaviors there."""
+
+    def _people(self):
+        return [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}]
+
+    def test_duplicate_participants_deduped_to_preserve_money(self):
+        # Without dedup, both split paths key shares by pid, so a repeat
+        # overwrites the prior share and money silently vanishes.
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 300,
+                       "payer_id": "a",
+                       "participant_ids": ["a", "a", "b"],
+                       "split": {"mode": "equal"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items[0].participant_ids, ["a", "b"])
+        shares = split_item(state.items[0])
+        self.assertEqual(sum(shares.values()), 300)
+
+    def test_unknown_split_mode_normalized_to_equal(self):
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 100,
+                       "payer_id": "a", "participant_ids": ["a", "b"],
+                       "split": {"mode": "weird-future-mode"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items[0].split_mode(), MODE_EQUAL)
+        # Calc layer no longer raises on this item.
+        self.assertEqual(sum(split_item(state.items[0]).values()), 100)
+
+    def test_negative_amount_clamped_to_zero(self):
+        # Equal split would conserve negatives, but the uneven path
+        # truncates toward zero and leaks a cent. Reject at the boundary.
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": -500,
+                       "payer_id": "a", "participant_ids": ["a", "b"],
+                       "split": {"mode": "equal"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items[0].amount_cents, 0)
+
+    def test_orphan_payer_drops_item(self):
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 300,
+                       "payer_id": "ghost",
+                       "participant_ids": ["a", "b"],
+                       "split": {"mode": "equal"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items, [])
+
+    def test_item_with_only_orphan_participants_dropped(self):
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 300,
+                       "payer_id": "a",
+                       "participant_ids": ["ghost1", "ghost2"],
+                       "split": {"mode": "equal"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items, [])
+
+    def test_partial_orphans_filtered_from_participants(self):
+        # Known participants stay; unknown ones are removed and weights
+        # for them are dropped too.
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 600,
+                       "payer_id": "a",
+                       "participant_ids": ["a", "ghost", "b"],
+                       "split": {"mode": "uneven",
+                                 "weights": {"a": 1, "ghost": 5, "b": 1}}}],
+        }
+        state = AppState.from_dict(raw)
+        it = state.items[0]
+        self.assertEqual(it.participant_ids, ["a", "b"])
+        self.assertEqual(it.split.get("weights"), {"a": 1, "b": 1})
+        # Settlement now conserves: a paid 600, owes 300; b owes 300.
+        self.assertEqual(settle_up(state), [("b", "a", 300)])
+
+    def test_well_formed_state_survives_untouched(self):
+        # Regression guard: the new filters must not chip away at valid
+        # state. A clean round-trip must equal the input.
+        raw = {
+            "people": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+            "items": [{"id": "i", "description": "lunch",
+                       "amount_cents": 1234, "payer_id": "a",
+                       "participant_ids": ["a", "b"],
+                       "split": {"mode": "uneven",
+                                 "weights": {"a": 2, "b": 1}}}],
+        }
+        self.assertEqual(AppState.from_dict(raw).to_dict(), raw)
 
 
 if __name__ == "__main__":

@@ -2,9 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#635bff">
+  <meta name="description" content="Split bills fairly. Add people, log items, settle up — all local.">
   <title>vvsplit — Workspace</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" href="./icons/favicon.png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="vvsplit">
+  <meta name="application-name" content="vvsplit">
 
   <!-- Defense-in-depth CSP. DISABLED by default: PyScript needs WebAssembly
        ('wasm-unsafe-eval') plus the exact CDN hosts it fetches the runtime
@@ -39,78 +50,52 @@
   </noscript>
 
   <div class="app">
-    <!-- ============ LEFT NAV ============ -->
-    <aside class="nav">
-      <div class="brand"><span class="brand-mark">v</span>vvsplit</div>
-
-      <div class="nav-section">
-        <div class="label">Workspace</div>
-        <a class="nav-item active" href="#h-overview">
-          <span class="ico" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7l6-5 6 5v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z"/><path d="M6 15v-5h4v5"/></svg>
-          </span>
-          Overview
-        </a>
-        <a class="nav-item" href="#h-items">
-          <span class="ico" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M2 6.5h12"/></svg>
-          </span>
-          Items
-          <span class="count num" id="count-items">0</span>
-        </a>
-        <a class="nav-item" href="#h-people">
-          <span class="ico" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><path d="M2 14a4 4 0 0 1 8 0"/><circle cx="12" cy="5" r="2"/><path d="M10 13a4 4 0 0 1 4-1"/></svg>
-          </span>
-          People
-          <span class="count num" id="count-people">0</span>
-        </a>
-        <a class="nav-item" href="#h-settle">
-          <span class="ico" aria-hidden="true">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l4-4 4 4"/><path d="M7 2v8"/><path d="M13 10l-4 4-4-4"/><path d="M9 14V6"/></svg>
-          </span>
-          Settle up
-          <span class="count num" id="count-settle">0</span>
-        </a>
+    <!-- Topbar and page-head are .app grid children (not inside .main) so
+         the grid can interleave them with the People rail on mobile while
+         keeping the desktop layout visually unchanged. -->
+    <header class="topbar">
+      <span class="brand-mark" aria-hidden="true">v</span>
+      <div class="crumb">
+        <b>vvsplit</b> <span class="sep">·</span> Workspace
       </div>
-
-      <div class="nav-section nav-section-people">
-        <div class="label">People</div>
-        <ul id="people-list" class="nav-people"></ul>
-        <div class="nav-add-person">
-          <input id="person-name" class="input input-sm" type="text" placeholder="Add a name…" autocomplete="off">
-          <button id="add-person" class="btn btn-secondary btn-sm">+</button>
-        </div>
-        <p id="people-error" class="error" role="alert"></p>
-      </div>
-
-      <div class="nav-foot">
+      <span class="saved-pill" title="State is saved locally in your browser">
         <span class="dot" aria-hidden="true"></span>
-        <span>Saved · localStorage</span>
-      </div>
-    </aside>
+        <span class="saved-label">Saved · localStorage</span>
+      </span>
+    </header>
 
-    <!-- ============ MAIN ============ -->
-    <section class="main">
-      <header class="topbar">
-        <div class="crumb">
-          <b>vvsplit</b> <span class="sep">·</span> Workspace
-        </div>
-      </header>
-
+    <div class="page-head">
       <p id="boot-msg" class="boot">
         <span class="boot-spinner" aria-hidden="true"></span>
         Loading… if this stays, the PyScript runtime could not load
         (offline or the CDN is blocked).
       </p>
+      <div>
+        <h1>Overview</h1>
+        <p id="page-supporting">Add people, then add items. Splits and settle-up update live.</p>
+      </div>
+    </div>
 
-      <div class="page-head" id="h-overview">
-        <div>
-          <h1>Overview</h1>
-          <p id="page-supporting">Add people, then add items. Splits and settle-up update live.</p>
+    <!-- ============ LEFT RAIL (People) ============ -->
+    <aside class="people-rail">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>People</h2>
+          <span class="desc">· who's splitting the bill</span>
+        </div>
+        <div class="panel-body">
+          <ul id="people-list" class="people-list"></ul>
+          <div class="row-add-person">
+            <input id="person-name" class="input" type="text" aria-label="Person name" placeholder="Add a name…" autocomplete="off">
+            <button id="add-person" class="btn btn-secondary">+ Add person</button>
+          </div>
+          <p id="people-error" class="error" role="alert"></p>
         </div>
       </div>
+    </aside>
 
+    <!-- ============ MAIN ============ -->
+    <section class="main">
       <!-- KPI strip -->
       <div class="kpi-strip">
         <div class="kpi">
@@ -136,7 +121,7 @@
       </div>
 
       <!-- Items panel -->
-      <div class="panel" id="h-items">
+      <div class="panel">
         <div class="panel-head">
           <h2>Items</h2>
           <span class="desc">· activity log</span>
@@ -180,8 +165,8 @@
             <div>
               <div class="extras-label">Method</div>
               <div class="seg" role="radiogroup" aria-label="Split mode">
-                <label><input type="radio" name="split-mode" id="mode-equal" checked><span class="t">Equally</span></label>
-                <label><input type="radio" name="split-mode" id="mode-uneven"><span class="t">Weighted</span></label>
+                <label><input type="radio" name="split-mode" id="mode-equal" value="equal" checked><span class="t">Equally</span></label>
+                <label><input type="radio" name="split-mode" id="mode-uneven" value="uneven"><span class="t">Weighted</span></label>
               </div>
             </div>
             <div>
@@ -196,7 +181,7 @@
     </section>
 
     <!-- ============ RIGHT RAIL ============ -->
-    <aside class="rail" id="h-settle">
+    <aside class="rail">
       <div id="results"></div>
     </aside>
   </div>

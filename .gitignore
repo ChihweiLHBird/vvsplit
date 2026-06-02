@@ -1,0 +1,52 @@
+# ====== Python bytecode & tooling caches ======
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ====== Virtual environments ======
+.venv/
+venv/
+env/
+ENV/
+
+# ====== Build / dist (defensive — no build step today) ======
+build/
+dist/
+*.egg-info/
+node_modules/
+
+# ====== Editor & tooling ======
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.~lock.*
+
+# ====== OS metadata ======
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====== Claude Code (machine-local state only) ======
+.claude/settings.local.json
+
+# ====== Logs ======
+*.log
+
+# ====== Pulumi (Python) ======
+# Auto-created venv (Pulumi installs requirements.txt into it).
+infra/venv/
+
+# ====== Project-specific ======
+# Built static-asset tree staged by scripts/stage-assets.sh for the deploy.
+/dist/
+# Design handoff archive — integrated into index.html / styles.css.
+vvsplit.zip
