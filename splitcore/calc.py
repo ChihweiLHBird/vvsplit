@@ -6,6 +6,10 @@ always equals the input amount exactly (no lost or invented pennies).
 
 from splitcore.model import MODE_EQUAL, MODE_UNEVEN
 
+# Cap weights so amount * weight can't overflow float (→ OverflowError).
+# Far above any real weight; with MAX_CENTS this keeps products well finite.
+_MAX_WEIGHT = 1e12
+
 
 def parse_finite(x):
     """Parse x to a real, finite float, or return None.
@@ -95,7 +99,11 @@ def split_item(item):
         w = []
         for pid in participants:
             v = parse_finite(weights.get(pid, 0))
-            w.append(v if (v is not None and v > 0) else 0.0)
+            if v is None or v <= 0:
+                v = 0.0
+            elif v > _MAX_WEIGHT:
+                v = _MAX_WEIGHT
+            w.append(v)
         total_w = sum(w)
         # `not (> 0)` also rejects 0 and NaN totals; fall back to an equal
         # split so money is still conserved rather than crashing or

@@ -9,6 +9,11 @@ import sys
 MODE_EQUAL = "equal"
 MODE_UNEVEN = "uneven"
 
+# $1B. Caps persisted amounts so the float-based uneven split stays exact:
+# values past ~2^53 cents lose integer precision, which can make the penny
+# remainder exceed the participant count (IndexError) or overflow to inf.
+MAX_CENTS = 10 ** 11
+
 
 def _warn_skip(kind, exc):
     # Surface dropped records so silent data loss / dev-time API breaks
@@ -105,12 +110,14 @@ class Item:
         # from hand-edited storage) so downstream cent math can't crash.
         if isinstance(amount, bool) or not isinstance(amount, int):
             amount = 0
-        # Reject negative amounts at the boundary. Equal split conserves
-        # money for negatives, but the uneven path uses int() truncation
-        # which truncates toward zero and leaks one cent per share. The
-        # UI enforces amount > 0; this guards storage tampering.
+        # Clamp to [0, MAX_CENTS]. Negatives leak a cent in the uneven
+        # path (int() truncates toward zero); oversized values break the
+        # float split math. The UI enforces this range; this guards
+        # hand-edited / corrupt storage.
         if amount < 0:
             amount = 0
+        elif amount > MAX_CENTS:
+            amount = MAX_CENTS
 
         return Item(
             str(d.get("id", "")),

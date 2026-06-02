@@ -1,0 +1,14 @@
+name: CI
+
+# PR validation only — no secrets in scope.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml

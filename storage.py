@@ -35,3 +35,15 @@ def load():
 
 def save(state):
     window.localStorage.setItem(KEY, json.dumps(state.to_dict()))
+
+
+def writable():
+    # getItem can succeed while setItem throws (Safari private mode has a
+    # 0 quota), so probe an actual write to know if persistence works.
+    try:
+        probe = KEY + ":probe"
+        window.localStorage.setItem(probe, "1")
+        window.localStorage.removeItem(probe)
+        return True
+    except Exception:
+        return False

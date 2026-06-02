@@ -28,7 +28,8 @@ You already have one. (Otherwise: Cloud Manager → Object Storage → Access Ke
 ### 3. Cloudflare API token
 
 My Profile → API Tokens → Custom token: **Account → Workers Scripts → Edit**
-(+ **Zone → DNS → Edit** only when adding a custom domain).
+(for a custom domain, also add **Zone → Workers Routes → Edit** and
+**Zone → DNS → Edit** for that zone).
 
 ### 4. Set env
 
@@ -72,15 +73,14 @@ cd infra && pulumi up
 
 ## CI / workflow
 
-`.github/workflows/deploy.yml`, two jobs by privilege:
+A reusable `test` job (`.github/workflows/test.yml`: `py_compile` + unit tests,
+no secrets) is called by two workflows:
 
-- **`test`** — every PR and push. **No secrets**: Python tests, the JS-free
-  audit, and `py_compile` of the Pulumi program. A PR (even one editing the
-  workflow) can't reach the credentials.
-- **`deploy`** — push to `main` (and manual dispatch), gated by the
-  `production` GitHub Environment. Stages `dist/`, stamps `CACHE_VERSION`,
-  then `pulumi/actions@v7` runs `up`. Dispatch with `action=plan` runs
-  `preview` only.
+- **`ci.yml`** — runs `test` on every PR. A PR (even one editing a workflow)
+  can't reach credentials.
+- **`deploy.yml`** — on push to `main` (and manual dispatch): runs `test`, then
+  an env-gated `deploy` job that stages `dist/`, stamps `CACHE_VERSION`, and
+  runs `pulumi/actions@v7` `up`. Dispatch with `action=plan` runs `preview`.
 
 > **Set up the gate.** Settings → Environments → create `production` with
 > yourself as a **required reviewer** so each prod deploy pauses for approval.
@@ -90,10 +90,10 @@ cd infra && pulumi up
 
 | Secret | For |
 |---|---|
-| `CLOUDFLARE_API_TOKEN` | Provider auth (Workers Scripts:Edit; +DNS:Edit for a custom domain). |
+| `CLOUDFLARE_API_TOKEN` | Provider auth (Workers Scripts:Edit; + Workers Routes:Edit & DNS:Edit for a custom domain). |
 | `CLOUDFLARE_ACCOUNT_ID` | Read by the program. |
-| `OBJECT_STORAGE_ACCESS_KEY_ID` | Linode key → `AWS_ACCESS_KEY_ID`. |
-| `OBJECT_STORAGE_SECRET_ACCESS_KEY` | Linode secret → `AWS_SECRET_ACCESS_KEY`. |
+| `PULUMI_STATE_ACCESS_KEY_ID` | Linode key → `AWS_ACCESS_KEY_ID`. |
+| `PULUMI_STATE_SECRET_ACCESS_KEY` | Linode secret → `AWS_SECRET_ACCESS_KEY`. |
 | `PULUMI_CONFIG_PASSPHRASE` | Encrypts secrets in Pulumi state. |
 
 ### GitHub variables (not secrets)
@@ -114,8 +114,26 @@ default request checksums — set
 Keep the state bucket **private** (the default). State holds the account id and
 Worker metadata, plus any Pulumi secrets (encrypted via the passphrase).
 
-## Enabling a custom domain
+## Custom domain (e.g. vvsplit.zliang.me)
 
-Add a `cloudflare.WorkersCustomDomain` resource in `__main__.py` (verify the
-current input names in the [provider docs](https://www.pulumi.com/registry/packages/cloudflare/)),
-give the API token `Zone:DNS:Edit`, and `pulumi up`.
+The program creates a `cloudflare.WorkersCustomDomain` when `CUSTOM_DOMAIN` is
+set (Cloudflare auto-creates the DNS record + TLS cert; a subdomain works the
+same as an apex). To enable it:
+
+1. The zone must already be in your Cloudflare account (e.g. `zliang.me`).
+2. Get its **Zone ID**: dashboard → select the domain → Overview → Zone ID.
+3. Extend the API token: add **Zone → Workers Routes → Edit** (and
+   **Zone → DNS → Edit**) for that zone, on top of Workers Scripts:Edit.
+4. Set config — locally as env, in CI as repo **variables**:
+   ```bash
+   export CUSTOM_DOMAIN=vvsplit.zliang.me
+   export CLOUDFLARE_ZONE_ID=<zliang.me zone id>
+   ```
+   CI: add `CUSTOM_DOMAIN` as a repo **variable** and `CLOUDFLARE_ZONE_ID` as
+   a **secret** (both are non-credentials, so either scope works; this matches
+   how `CLOUDFLARE_ACCOUNT_ID` is stored).
+5. `./scripts/stage-assets.sh && cd infra && pulumi up`.
+
+Leave `CUSTOM_DOMAIN` unset to skip the domain (the Worker still serves at
+`*.workers.dev`). Field names are from the provider's Terraform schema —
+`pulumi preview` will flag any mismatch on the first run.

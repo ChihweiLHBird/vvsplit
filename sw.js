@@ -16,7 +16,7 @@
 //
 // To force a refresh after editing static files: bump CACHE_VERSION.
 
-const CACHE_VERSION = 'vvsplit-v5';
+const CACHE_VERSION = 'vvsplit-v6';
 
 // App shell — everything required for a cold-from-cache boot. Keep this
 // in sync with files referenced by index.html / pyscript.toml.
@@ -64,9 +64,13 @@ self.addEventListener('install', (event) => {
     if (failed.length) {
       console.warn('vvsplit sw: failed to precache', failed);
     }
+    // Default (cors) mode: core.js is loaded as a module script, which
+    // rejects the opaque response a no-cors fetch would cache — that broke
+    // offline cold boot. pyscript.net sends CORS, so this caches a usable
+    // response. Failures stay tolerated (allSettled).
     await Promise.allSettled(
       RUNTIME_WARMUP.map((url) =>
-        fetch(url, { mode: 'no-cors' }).then((r) => cache.put(url, r))
+        fetch(url).then((r) => { if (r.ok) return cache.put(url, r); })
       )
     );
     await self.skipWaiting();

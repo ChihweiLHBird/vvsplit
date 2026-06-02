@@ -20,13 +20,10 @@ from splitcore.calc import (
     per_person_totals,
     settle_up,
 )
-from splitcore.model import MODE_EQUAL, MODE_UNEVEN, Item, Person
+from splitcore.model import (
+    MAX_CENTS, AppState, MODE_EQUAL, MODE_UNEVEN, Item, Person)
 
-# Reject absurd magnitudes early. parse_cents returns int cents; cap is
-# expressed in cents to compare without re-converting.
-_MAX_CENTS = 10 ** 11  # $1,000,000,000.00
-
-_state = None
+_state: AppState = None  # type: ignore  # bound in start()
 _storage = None
 _id_counter = 0
 # Proxies created during a render. They must be destroyed before the next
@@ -573,7 +570,7 @@ def on_add_item(event):
     if amount_cents is None:
         err.textContent = "Amount must be a number."
         return
-    if amount_cents > _MAX_CENTS:
+    if amount_cents > MAX_CENTS:
         err.textContent = "Amount is unreasonably large."
         return
     if amount_cents <= 0:
@@ -668,6 +665,10 @@ def start(state, storage_module):
     parts = _qs("#participants")
     _on(parts, "focusin", _select_share_field, track=False)
     render_all()
+    # Startup load may have hit blocked/private-mode storage; the pill is
+    # hardcoded "Saved" in HTML, so correct it before the user is misled.
+    if not _storage.writable():
+        _set_save_status(False, "localStorage unavailable")
     boot = _qs("#boot-msg")
     if boot:
         boot.remove()

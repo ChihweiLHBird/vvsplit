@@ -1,0 +1,26 @@
+name: Test
+
+# Reusable: called by ci.yml (PR) and deploy.yml (push/dispatch). No secrets.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Syntax check
+        run: |
+          python -m py_compile main.py ui.py storage.py splitcore/*.py
+          python -m py_compile infra/__main__.py
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests

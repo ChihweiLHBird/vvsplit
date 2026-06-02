@@ -19,6 +19,7 @@ from splitcore.calc import (
     split_item,
 )
 from splitcore.model import (
+    MAX_CENTS,
     MODE_EQUAL,
     MODE_UNEVEN,
     AppState,
@@ -407,6 +408,40 @@ class FromDictBoundaryTests(unittest.TestCase):
                                  "weights": {"a": 2, "b": 1}}}],
         }
         self.assertEqual(AppState.from_dict(raw).to_dict(), raw)
+
+    def test_oversized_amount_clamped(self):
+        raw = {
+            "people": self._people(),
+            "items": [{"id": "i", "description": "x", "amount_cents": 10 ** 50,
+                       "payer_id": "a", "participant_ids": ["a", "b"],
+                       "split": {"mode": "equal"}}],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual(state.items[0].amount_cents, MAX_CENTS)
+
+    def test_huge_amount_uneven_conserves_after_clamp(self):
+        # The IndexError repro: 10**20 split 1:1:1. After clamping, the
+        # float split stays exact and conserves to MAX_CENTS.
+        raw = {
+            "people": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"},
+                       {"id": "c", "name": "C"}],
+            "items": [{"id": "i", "description": "x", "amount_cents": 10 ** 20,
+                       "payer_id": "a", "participant_ids": ["a", "b", "c"],
+                       "split": {"mode": "uneven",
+                                 "weights": {"a": 1, "b": 1, "c": 1}}}],
+        }
+        it = AppState.from_dict(raw).items[0]
+        self.assertEqual(it.amount_cents, MAX_CENTS)
+        self.assertEqual(sum(split_item(it).values()), MAX_CENTS)
+
+
+class HugeWeightTests(unittest.TestCase):
+    def test_huge_weight_does_not_crash_and_conserves(self):
+        # 1e308 is finite, so parse_finite accepts it; capping prevents
+        # amount * weight from overflowing to inf (OverflowError on int()).
+        shares = split_item(item(1000, ["a", "b"],
+                                 split=uneven({"a": 1e308, "b": 1})))
+        self.assertEqual(sum(shares.values()), 1000)
 
 
 if __name__ == "__main__":

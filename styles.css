@@ -174,10 +174,9 @@ body {
   background: var(--success);
   box-shadow: 0 0 0 3px rgba(0, 184, 120, .18);
 }
-/* Error state: a save attempt failed. The label text and title are
-   updated by _set_save_status() in ui.py; color/dot signal here. On
-   small screens the label is hidden, so the red dot is the only
-   indicator — keep it visible. */
+/* Error state: a save attempt failed. _set_save_status() in ui.py sets the
+   label text + title; the dot/color signal here. The label is kept visible
+   on narrow screens (below) so the warning is never color-only. */
 .saved-pill.err { color: var(--danger); }
 .saved-pill.err .dot {
   background: var(--danger);
@@ -185,6 +184,7 @@ body {
 }
 @media (max-width: 560px) {
   .saved-pill .saved-label { display: none; }
+  .saved-pill.err .saved-label { display: inline; }
 }
 
 /* ================ PEOPLE PANEL ================ */
