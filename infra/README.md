@@ -44,13 +44,17 @@ export PULUMI_CONFIG_PASSPHRASE=<passphrase>  # encrypts secrets in state
 ### 5. Point Pulumi at the Linode backend, create the stack
 
 ```bash
-pulumi login 's3://vvsplit-pulumi-state?endpoint=<cluster-id>.linodeobjects.com&region=us-east-1&s3ForcePathStyle=true'
+pulumi login 's3://vvsplit-pulumi-state?endpoint=<cluster-id>.linodeobjects.com&region=us-east-1'
 cd infra
 pulumi stack init production
 ```
 
 `region=us-east-1` is the value Linode expects regardless of the actual
 cluster; the cluster is selected by the `endpoint`.
+
+CI creates the `production` stack automatically on first deploy (the
+`pulumi/actions` step sets `upsert: true`), so this manual `stack init` is
+only needed for a local `pulumi up`.
 
 ### 6. Stage assets, then up
 
@@ -106,9 +110,16 @@ no secrets) is called by two workflows:
 ## State backend (Linode Object Storage)
 
 Linode Object Storage is S3-compatible (Ceph/RGW), so it works as a Pulumi DIY
-backend. `s3ForcePathStyle=true` and `region=us-east-1` are required. If
-`pulumi login`/`up` fails on checksum errors, the store rejects the AWS SDK's
-default request checksums — set
+backend. `region=us-east-1` is required. Addressing style: the AWS SDK v2
+rewrites to virtual-hosted (`<bucket>.<endpoint>`) when path-style is off
+(`s3ForcePathStyle` omitted), `hostname_immutable` is unset, and the bucket
+name is host-compatible — so this config serves state at
+`vvsplit-pulumi-state.<cluster>.linodeobjects.com` (needs a dot-free bucket
+name to fit Linode's `*.<cluster>` TLS wildcard). Add `s3ForcePathStyle=true`
+to force path-style (`<endpoint>/<bucket>/<key>`) instead. The `s3://…` login
+string looks the same either way; confirm the real style in `pulumi --debug`
+HTTP logs. If `pulumi login`/`up` fails on checksum errors, the store rejects
+the AWS SDK's default request checksums — set
 `AWS_REQUEST_CHECKSUM_CALCULATION=when_required`.
 
 Keep the state bucket **private** (the default). State holds the account id and

@@ -43,6 +43,8 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.PULUMI_STATE_SECRET_ACCESS_KEY }}
       # Encrypts secrets in Pulumi state.
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      # DIY backend (Linode); pulumi reads this natively, no `pulumi login`.
+      PULUMI_BACKEND_URL: s3://${{ vars.PULUMI_STATE_BUCKET || 'vvsplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1
     steps:
       - uses: actions/checkout@v6
 
@@ -58,10 +60,13 @@ jobs:
           sed -i "s|const CACHE_VERSION = '.*';|const CACHE_VERSION = 'vvsplit-${GITHUB_SHA::8}';|" dist/sw.js
           grep -n CACHE_VERSION dist/sw.js
 
+      # The action installs the Pulumi CLI itself (no dependency on the
+      # runner image) and upsert creates the stack on first deploy.
       # preview on dispatch+plan; up on push to main or dispatch+apply.
       - uses: pulumi/actions@v7
         with:
           command: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') && 'preview' || 'up' }}
           stack-name: production
+          upsert: true
           work-dir: infra
-          cloud-url: s3://${{ vars.PULUMI_STATE_BUCKET || 'vvsplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1&s3ForcePathStyle=true
+          cloud-url: ${{ env.PULUMI_BACKEND_URL }}
