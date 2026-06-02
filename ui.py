@@ -239,6 +239,7 @@ def _render_item_form():
         cb.type = "checkbox"
         cb.value = person.id
         cb.className = "p-check"
+        cb.checked = True
         chip.appendChild(cb)
         chip.appendChild(_av(person.id, person.name, True))
         chip.appendChild(_el("span", _first_name(person.name)))
