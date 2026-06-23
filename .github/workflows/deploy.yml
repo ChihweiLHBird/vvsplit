@@ -46,7 +46,7 @@ jobs:
       # DIY backend (Linode); pulumi reads this natively, no `pulumi login`.
       PULUMI_BACKEND_URL: s3://${{ vars.PULUMI_STATE_BUCKET || 'bunnysplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-python@v6
         with:
