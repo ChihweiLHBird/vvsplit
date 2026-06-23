@@ -150,18 +150,6 @@ Browser
 
 ---
 
-## Contributing
-
-Contributions are welcome. A few things that help:
-
-- Keep `splitcore/` importable under both CPython and MicroPython.
-- Money stays in integer cents everywhere.
-- UI changes should use `createElement` + `textContent` (no `innerHTML` for user data).
-- Run the unit tests and recommended syntax checks before opening a PR.
-- If you change documented behavior, update the nearest `AGENTS.md` in the same change.
-
----
-
 ## Deployment
 
 bunnysplit is a completely static front-end application. It consists only of HTML, CSS, a minimal service worker, and Python code that executes in the browser through PyScript. There is no backend, no server-side logic, and no build process required to run the app.
