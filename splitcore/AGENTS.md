@@ -6,5 +6,9 @@
 - `model.py` is the persisted-state trust boundary. Harden malformed saved data here rather than making the UI or calc layer compensate later.
 - Keep `MODE_EQUAL` and `MODE_UNEVEN` literal values stable; tests lock persisted JSON to those exact strings.
 - Do not switch `model.py` to dataclasses.
+- `AppState.from_dict()` is the persisted/untrusted-state normalization path. Direct `Person`, `Item`, and `AppState` constructors do not enforce referential integrity, so do not pass browser/persisted input to them without equivalent validation.
+- Person and item IDs are logical keys: keep them non-empty, bounded, and unique. Duplicate IDs collapse dictionary-backed shares and make UI removal affect multiple records.
+- Bound digit counts before `parse_cents()` calls `int()`; a later `MAX_CENTS` comparison does not prevent oversized conversion failures.
 - After edits here, run `python -m unittest discover -s tests` and `python -m py_compile splitcore/*.py`.
 - Persisted-state hardening caps amounts (`MAX_CENTS` in `model.py`) and uneven weights (`_MAX_WEIGHT` in `calc.py`); preserve those bounds and exact penny conservation when changing split math or deserialization.
+- If repository behavior contradicts this file, patch `splitcore/AGENTS.md` in the same change and preserve the `splitcore/CLAUDE.md` symlink.
