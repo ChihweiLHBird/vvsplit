@@ -5,7 +5,7 @@ Split bills fairly. Add people, log items, settle up — **all local**.
 A privacy-first, zero-backend bill splitter that runs entirely in your browser using [PyScript](https://pyscript.net/) + MicroPython. No accounts, no servers — your bill data never leaves your device.
 
 ![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
-![Tests](https://img.shields.io/badge/tests-40%20passing-success)
+![Tests](https://img.shields.io/badge/tests-54%20passing-success)
 ![Python](https://img.shields.io/badge/python-3.x-blue)
 
 ---
@@ -132,8 +132,7 @@ Browser
 ├── icons/               # PWA icons (referenced by manifest, index.html, sw.js, stage)
 ├── scripts/
 │   └── stage-assets.sh  # Prepares ./dist for deploy
-├── tests/
-│   └── test_calc.py     # 40 unit tests (CPython)
+├── tests/               # Core, storage/UI, staging, and service-worker tests
 ├── infra/               # Pulumi deployment (Cloudflare)
 └── docs/                # Historical specs & audits
 ```
@@ -175,7 +174,7 @@ The resulting `dist/` directory holds the complete static application. Because i
 
 Most static hosts automatically provide HTTPS, which is required for the service worker to enable the full PWA and offline experience in production environments.
 
-After staging, quickly inspect `dist/` (or its file list) to confirm it only contains the intended app files — the current staging process uses a denylist and may pick up local development artifacts such as virtual environments if present in your working tree.
+Staging uses an explicit asset manifest and replaces `dist/` with only those files. When adding a browser/runtime asset, add it to `scripts/stage-assets.sh` and its regression test.
 
 For the simplest experience, deploy at the root of a domain (or subdomain). Deployments under a subdirectory may require adjustments to service worker scope and asset paths.
 
@@ -183,8 +182,8 @@ For the simplest experience, deploy at the root of a domain (or subdomain). Depl
 
 The project is currently deployed on a Cloudflare **assets-only Worker** using Pulumi. This choice mainly simplifies custom domain setup, CI/CD with deployment gates, and fits the existing infrastructure (Pulumi state is stored in an S3-compatible object storage backend).
 
-- `./scripts/stage-assets.sh` prepares `./dist`
-- CI stamps `dist/sw.js` (CACHE_VERSION), then `pulumi/actions` (work-dir: infra; no wrangler)
+- `./scripts/stage-assets.sh` prepares `./dist` and derives its service-worker cache version from the staged content
+- `pulumi/actions` deploys from `infra/` (no wrangler)
 
 See [infra/README.md](infra/README.md) for complete setup instructions, including required secrets, the DIY S3 backend, and custom domain configuration.
 

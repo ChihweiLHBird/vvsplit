@@ -50,15 +50,10 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
+          python-version: '3.14'
 
       - name: Stage dist/
         run: ./scripts/stage-assets.sh
-
-      - name: Stamp CACHE_VERSION with commit SHA
-        run: |
-          sed -i "s|const CACHE_VERSION = '.*';|const CACHE_VERSION = 'bunnysplit-${GITHUB_SHA::8}';|" dist/sw.js
-          grep -n CACHE_VERSION dist/sw.js
 
       # The action installs the Pulumi CLI itself (no dependency on the
       # runner image) and upsert creates the stack on first deploy.

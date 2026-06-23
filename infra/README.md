@@ -58,12 +58,18 @@ only needed for a local `pulumi up`.
 
 ### 6. Stage assets, then up
 
+The deployment dependency lock targets Linux x86_64 with CPython 3.14, matching
+GitHub Actions. Use that environment for a local deploy. Dependency updates are
+declared in `requirements.in` and compiled into the fully pinned, hash-checked,
+binary-only `requirements.txt` using the command documented in
+`requirements.in`.
+
 ```bash
 ./scripts/stage-assets.sh        # builds ./dist
 cd infra && pulumi up             # creates venv, installs deps, deploys
 ```
 
-Pulumi auto-creates `infra/venv`, installs `requirements.txt`, then deploys.
+Pulumi auto-creates `infra/venv`, installs the locked `requirements.txt`, then deploys.
 The Worker serves at `https://bunnysplit.<account-subdomain>.workers.dev`.
 
 ## Day-to-day
@@ -83,8 +89,9 @@ no secrets) is called by two workflows:
 - **`ci.yml`** — runs `test` on every PR. A PR (even one editing a workflow)
   can't reach credentials.
 - **`deploy.yml`** — on push to `main` (and manual dispatch): runs `test`, then
-  an env-gated `deploy` job that stages `dist/`, stamps `CACHE_VERSION`, and
-  runs `pulumi/actions@v7` `up`. Dispatch with `action=plan` runs `preview`.
+  an env-gated `deploy` job that stages `dist/` (including its content-derived
+  `CACHE_VERSION`) and runs `pulumi/actions@v7` `up`. Dispatch with
+  `action=plan` runs `preview`.
 
 > **Set up the gate.** Settings → Environments → create `production` with
 > yourself as a **required reviewer** so each prod deploy pauses for approval.

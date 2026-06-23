@@ -13,6 +13,7 @@ MODE_UNEVEN = "uneven"
 # values past ~2^53 cents lose integer precision, which can make the penny
 # remainder exceed the participant count (IndexError) or overflow to inf.
 MAX_CENTS = 10 ** 11
+MAX_ID_LENGTH = 64
 
 
 def _warn_skip(kind, exc):
@@ -25,6 +26,26 @@ def _warn_skip(kind, exc):
         pass
 
 
+def _report_issue(on_issue, kind, exc):
+    _warn_skip(kind, exc)
+    if on_issue is not None:
+        try:
+            on_issue(kind, str(exc))
+        except Exception:
+            pass
+
+
+def _normalize_id(value, kind):
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        raise ValueError(kind + " id must be a string or integer")
+    identifier = str(value)
+    if not identifier.strip():
+        raise ValueError(kind + " id is empty")
+    if len(identifier) > MAX_ID_LENGTH:
+        raise ValueError(kind + " id exceeds %d characters" % MAX_ID_LENGTH)
+    return identifier
+
+
 class Person:
     def __init__(self, id, name):
         self.id = id
@@ -35,7 +56,7 @@ class Person:
 
     @staticmethod
     def from_dict(d):
-        return Person(str(d["id"]), str(d["name"]))
+        return Person(_normalize_id(d["id"], "person"), str(d["name"]))
 
 
 class Item:
@@ -77,7 +98,7 @@ class Item:
         }
 
     @staticmethod
-    def from_dict(d):
+    def from_dict(d, on_issue=None):
         # Dedup participants in source order. Without this, hand-edited
         # or corrupted state with duplicate ids would silently lose
         # money: both split paths key shares by participant_id, so a
@@ -86,14 +107,21 @@ class Item:
         # duplicates, but the model layer is the trust boundary.
         raw_pids = d.get("participant_ids", [])
         if not isinstance(raw_pids, list):
+            _report_issue(on_issue, "item", "participant_ids is not a list")
             raw_pids = []
         seen = set()
         pids = []
         for p in raw_pids:
-            s = str(p)
-            if s not in seen:
-                seen.add(s)
-                pids.append(s)
+            try:
+                s = _normalize_id(p, "participant")
+            except Exception as e:
+                _report_issue(on_issue, "participant", e)
+                continue
+            if s in seen:
+                _report_issue(on_issue, "participant", "duplicate id '%s'" % s)
+                continue
+            seen.add(s)
+            pids.append(s)
 
         # Normalize split.mode. Anything not in the known set would
         # raise from split_item() later; render_all() catches that and
@@ -101,29 +129,34 @@ class Item:
         # are wrong. Clamp here instead.
         split = d.get("split", {})
         if not isinstance(split, dict):
+            _report_issue(on_issue, "item", "split is not an object")
             split = {"mode": MODE_EQUAL}
         if split.get("mode") not in (MODE_EQUAL, MODE_UNEVEN):
+            _report_issue(on_issue, "item", "unknown split mode")
             split = {"mode": MODE_EQUAL}
 
         amount = d.get("amount_cents", 0)
         # bool is an int subclass; exclude it. Reject non-int (e.g. strings
         # from hand-edited storage) so downstream cent math can't crash.
         if isinstance(amount, bool) or not isinstance(amount, int):
+            _report_issue(on_issue, "item", "amount_cents is not an integer")
             amount = 0
         # Clamp to [0, MAX_CENTS]. Negatives leak a cent in the uneven
         # path (int() truncates toward zero); oversized values break the
         # float split math. The UI enforces this range; this guards
         # hand-edited / corrupt storage.
         if amount < 0:
+            _report_issue(on_issue, "item", "amount_cents is negative")
             amount = 0
         elif amount > MAX_CENTS:
+            _report_issue(on_issue, "item", "amount_cents exceeds MAX_CENTS")
             amount = MAX_CENTS
 
         return Item(
-            str(d.get("id", "")),
+            _normalize_id(d.get("id", ""), "item"),
             str(d.get("description", "")),
             amount,
-            str(d.get("payer_id", "")),
+            _normalize_id(d.get("payer_id", ""), "payer"),
             pids,
             split,
         )
@@ -155,40 +188,61 @@ class AppState:
         }
 
     @staticmethod
-    def from_dict(d):
+    def from_dict(d, on_issue=None):
         if not isinstance(d, dict):
+            _report_issue(on_issue, "state", "top-level value is not an object")
             return AppState()
         # Skip individual bad records rather than discarding all saved
         # state. Each skip is logged to stderr so silent data loss is
         # visible in the browser console.
         people = []
-        for p in d.get("people", []) or []:
+        raw_people = d.get("people", [])
+        if not isinstance(raw_people, list):
+            _report_issue(on_issue, "people", "people is not a list")
+            raw_people = []
+        person_ids = set()
+        for p in raw_people:
             try:
-                people.append(Person.from_dict(p))
+                person = Person.from_dict(p)
             except Exception as e:
-                _warn_skip("person", e)
+                _report_issue(on_issue, "person", e)
+                continue
+            if person.id in person_ids:
+                _report_issue(
+                    on_issue, "person", "duplicate id '%s'" % person.id)
+                continue
+            person_ids.add(person.id)
+            people.append(person)
 
-        valid_pids = {p.id for p in people}
+        valid_pids = person_ids
         items = []
-        for i in d.get("items", []) or []:
+        raw_items = d.get("items", [])
+        if not isinstance(raw_items, list):
+            _report_issue(on_issue, "items", "items is not a list")
+            raw_items = []
+        item_ids = set()
+        for i in raw_items:
             try:
-                it = Item.from_dict(i)
+                it = Item.from_dict(i, on_issue=on_issue)
             except Exception as e:
-                _warn_skip("item", e)
+                _report_issue(on_issue, "item", e)
                 continue
             # Drop items that reference unknown people. Without this,
             # per_person_totals counts unknown ids but settle_up only
             # walks state.people, so debts/credits to a missing person
             # silently disappear from the transfer plan.
             if it.payer_id not in valid_pids:
-                _warn_skip("item", "payer '%s' not in roster" % it.payer_id)
+                _report_issue(
+                    on_issue, "item",
+                    "payer '%s' not in roster" % it.payer_id)
                 continue
             kept = [pid for pid in it.participant_ids if pid in valid_pids]
             if not kept:
-                _warn_skip("item", "no known participants")
+                _report_issue(on_issue, "item", "no known participants")
                 continue
             if len(kept) != len(it.participant_ids):
-                _warn_skip(
+                _report_issue(
+                    on_issue,
                     "item",
                     "dropped unknown participants from '%s'" % it.description,
                 )
@@ -204,5 +258,10 @@ class AppState:
                                 if pid in valid_pids
                             },
                         }
+            if it.id in item_ids:
+                _report_issue(
+                    on_issue, "item", "duplicate id '%s'" % it.id)
+                continue
+            item_ids.add(it.id)
             items.append(it)
         return AppState(people=people, items=items)

@@ -4,11 +4,13 @@ Every function guarantees money conservation: the sum of allocated cents
 always equals the input amount exactly (no lost or invented pennies).
 """
 
-from splitcore.model import MODE_EQUAL, MODE_UNEVEN
+from splitcore.model import MAX_CENTS, MODE_EQUAL, MODE_UNEVEN
 
 # Cap weights so amount * weight can't overflow float (→ OverflowError).
 # Far above any real weight; with MAX_CENTS this keeps products well finite.
 _MAX_WEIGHT = 1e12
+_MAX_WHOLE_DIGITS = len(str(MAX_CENTS // 100))
+MAX_AMOUNT_INPUT_LENGTH = _MAX_WHOLE_DIGITS + 4  # sign, dot, two+ decimals
 
 
 def parse_finite(x):
@@ -39,8 +41,12 @@ def parse_cents(raw):
     fractional digits past 2 (not banker's-round); pads with zeros if the
     user typed fewer than 2. Accepts an optional leading sign.
     """
-    s = (raw or "").strip()
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip()
     if not s:
+        return None
+    if len(s) > MAX_AMOUNT_INPUT_LENGTH:
         return None
     neg = False
     if s[0] in "+-":
@@ -57,6 +63,10 @@ def parse_cents(raw):
     if frac and not frac.isdigit():
         return None
     if not whole and not frac:
+        return None
+    # Bound conversion cost before int(). This also avoids CPython's maximum
+    # decimal-string conversion exception and equivalent MicroPython pressure.
+    if len(whole) > _MAX_WHOLE_DIGITS:
         return None
     cents = int(whole or "0") * 100 + int((frac + "00")[:2])
     return -cents if neg else cents

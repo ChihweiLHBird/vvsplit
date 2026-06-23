@@ -15,6 +15,7 @@ from pyscript import document, window
 from pyscript.ffi import create_proxy
 
 from splitcore.calc import (
+    MAX_AMOUNT_INPUT_LENGTH,
     parse_cents,
     parse_finite,
     per_person_totals,
@@ -71,19 +72,18 @@ def _money(cents):
 
 def _next_id(prefix):
     global _id_counter
-    _id_counter += 1
-    return "%s%d" % (prefix, _id_counter)
+    existing = {obj.id for obj in list(_state.people) + list(_state.items)}
+    while True:
+        _id_counter += 1
+        candidate = "%s%d" % (prefix, _id_counter)
+        if candidate not in existing:
+            return candidate
 
 
 def _seed_counter():
-    """Ensure generated ids never collide with ids loaded from storage."""
+    """Reset generation; _next_id checks loaded logical keys directly."""
     global _id_counter
-    biggest = 0
-    for obj in list(_state.people) + list(_state.items):
-        digits = "".join(ch for ch in obj.id if ch.isdigit())
-        if digits:
-            biggest = max(biggest, int(digits))
-    _id_counter = biggest
+    _id_counter = 0
 
 
 # ---------- workspace helpers ----------
@@ -466,7 +466,13 @@ def _set_save_status(ok, detail=""):
     if pill is None:
         return
     label = pill.querySelector(".saved-label")
-    if ok:
+    recovery = ""
+    if ok and _storage is not None:
+        try:
+            recovery = _storage.recovery_warning()
+        except (AttributeError, TypeError):
+            pass
+    if ok and not recovery:
         try:
             pill.classList.remove("err")
         except Exception:
@@ -479,11 +485,16 @@ def _set_save_status(ok, detail=""):
             pill.classList.add("err")
         except Exception:
             pass
-        if label is not None:
-            label.textContent = "Save failed"
-        msg = "Could not save to localStorage"
-        if detail:
-            msg += ": " + detail
+        if recovery:
+            if label is not None:
+                label.textContent = "Recovered corrupt data"
+            msg = recovery
+        else:
+            if label is not None:
+                label.textContent = "Save failed"
+            msg = "Could not save to localStorage"
+            if detail:
+                msg += ": " + detail
         pill.title = msg
 
 
@@ -661,6 +672,7 @@ def start(state, storage_module):
     _state = state
     _storage = storage_module
     _seed_counter()
+    _qs("#item-amount").maxLength = MAX_AMOUNT_INPUT_LENGTH
     _on(_qs("#add-person"), "click", on_add_person, track=False)
     _on(_qs("#add-item"), "click", on_add_item, track=False)
     parts = _qs("#participants")
@@ -670,6 +682,8 @@ def start(state, storage_module):
     # hardcoded "Saved" in HTML, so correct it before the user is misled.
     if not _storage.writable():
         _set_save_status(False, "localStorage unavailable")
+    else:
+        _set_save_status(True)
     boot = _qs("#boot-msg")
     if boot:
         boot.remove()

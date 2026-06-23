@@ -11,6 +11,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from splitcore.calc import (
+    MAX_AMOUNT_INPUT_LENGTH,
     is_finite_number,
     parse_cents,
     parse_finite,
@@ -20,6 +21,7 @@ from splitcore.calc import (
 )
 from splitcore.model import (
     MAX_CENTS,
+    MAX_ID_LENGTH,
     MODE_EQUAL,
     MODE_UNEVEN,
     AppState,
@@ -265,6 +267,15 @@ class HardeningTests(unittest.TestCase):
                     "inf", "nan", "+-1", None):
             self.assertIsNone(parse_cents(bad), bad)
 
+    def test_parse_cents_rejects_oversized_digits_before_conversion(self):
+        self.assertIsNone(parse_cents("1" * 5000))
+        self.assertIsNone(parse_cents("1." + "2" * 5000))
+        self.assertEqual(
+            parse_cents("%d.00" % (MAX_CENTS // 100)),
+            MAX_CENTS,
+        )
+        self.assertEqual(MAX_AMOUNT_INPUT_LENGTH, 14)
+
     def test_uneven_inf_weight_falls_back_not_crash(self):
         shares = split_item(item(900, ["a", "b", "c"],
                                  split=uneven({"a": "inf", "b": 1, "c": 1})))
@@ -331,6 +342,80 @@ class FromDictBoundaryTests(unittest.TestCase):
         self.assertEqual(state.items[0].participant_ids, ["a", "b"])
         shares = split_item(state.items[0])
         self.assertEqual(sum(shares.values()), 300)
+
+    def test_scalar_collections_are_recovered_without_crashing(self):
+        issues = []
+        state = AppState.from_dict(
+            {"people": 7, "items": {"id": "i"}},
+            on_issue=lambda kind, message: issues.append((kind, message)),
+        )
+        self.assertEqual(state.to_dict(), {"people": [], "items": []})
+        self.assertEqual([kind for kind, _ in issues], ["people", "items"])
+
+    def test_duplicate_person_and_item_ids_are_skipped(self):
+        issues = []
+        raw = {
+            "people": [
+                {"id": "a", "name": "First"},
+                {"id": "a", "name": "Duplicate"},
+                {"id": "b", "name": "B"},
+            ],
+            "items": [
+                {"id": "i", "description": "first", "amount_cents": 100,
+                 "payer_id": "a", "participant_ids": ["a", "b"],
+                 "split": {"mode": "equal"}},
+                {"id": "i", "description": "duplicate", "amount_cents": 200,
+                 "payer_id": "a", "participant_ids": ["a", "b"],
+                 "split": {"mode": "equal"}},
+            ],
+        }
+        state = AppState.from_dict(
+            raw, on_issue=lambda kind, message: issues.append((kind, message)))
+        self.assertEqual([(p.id, p.name) for p in state.people],
+                         [("a", "First"), ("b", "B")])
+        self.assertEqual([(it.id, it.description) for it in state.items],
+                         [("i", "first")])
+        self.assertEqual(sum("duplicate id" in message for _, message in issues),
+                         2)
+
+    def test_empty_and_oversized_ids_are_skipped(self):
+        too_long = "x" * (MAX_ID_LENGTH + 1)
+        raw = {
+            "people": [
+                {"id": "", "name": "Empty"},
+                {"id": too_long, "name": "Long"},
+                {"id": "a", "name": "A"},
+            ],
+            "items": [
+                {"id": too_long, "description": "bad", "amount_cents": 100,
+                 "payer_id": "a", "participant_ids": ["a"],
+                 "split": {"mode": "equal"}},
+                {"id": "ok", "description": "ok", "amount_cents": 100,
+                 "payer_id": "a", "participant_ids": ["a", too_long],
+                 "split": {"mode": "equal"}},
+            ],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual([p.id for p in state.people], ["a"])
+        self.assertEqual([it.id for it in state.items], ["ok"])
+        self.assertEqual(state.items[0].participant_ids, ["a"])
+
+    def test_composite_and_null_ids_are_skipped(self):
+        raw = {
+            "people": [
+                {"id": None, "name": "Null"},
+                {"id": {"nested": "id"}, "name": "Composite"},
+                {"id": "a", "name": "A"},
+            ],
+            "items": [{
+                "id": "i", "description": "ok", "amount_cents": 100,
+                "payer_id": "a", "participant_ids": ["a", ["bad"]],
+                "split": {"mode": "equal"},
+            }],
+        }
+        state = AppState.from_dict(raw)
+        self.assertEqual([person.id for person in state.people], ["a"])
+        self.assertEqual(state.items[0].participant_ids, ["a"])
 
     def test_unknown_split_mode_normalized_to_equal(self):
         raw = {

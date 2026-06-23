@@ -11,11 +11,12 @@
 //               cross-origin (PyScript CDN, Google Fonts) → network-first
 //               with stale-cache fallback so a new pinned version is
 //               picked up without bricking offline users.
-//   - activate: drop old cache buckets so a CACHE_VERSION bump fully
-//               replaces the previous shell.
+//   - activate: drop this app's old cache buckets so a CACHE_VERSION bump
+//               fully replaces the previous shell without touching others.
 //
-// To force a refresh after editing static files: bump CACHE_VERSION.
+// stage-assets.sh replaces the source placeholder with a content-derived key.
 
+const CACHE_PREFIX = 'bunnysplit-';
 const CACHE_VERSION = 'bunnysplit-v6';
 
 // App shell — everything required for a cold-from-cache boot. Keep this
@@ -50,19 +51,13 @@ const RUNTIME_WARMUP = [
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_VERSION);
-    // cache.addAll is atomic: one failing URL aborts the whole install
-    // and leaves the app with zero offline support. Cache entries
-    // individually instead so a single stale or renamed path can't kill
-    // the rest of the shell. Failures are surfaced to the console so
-    // dev-time mistakes (typo in APP_SHELL) don't hide silently.
-    const results = await Promise.allSettled(
-      APP_SHELL.map((url) => cache.add(url))
-    );
-    const failed = results
-      .map((r, i) => (r.status === 'rejected' ? APP_SHELL[i] : null))
-      .filter(Boolean);
-    if (failed.length) {
-      console.warn('bunnysplit sw: failed to precache', failed);
+    // The required app shell is all-or-nothing. A failed install rejects
+    // before skipWaiting, preserving the previously active worker and cache.
+    try {
+      await cache.addAll(APP_SHELL);
+    } catch (err) {
+      await caches.delete(CACHE_VERSION);
+      throw err;
     }
     // Default (cors) mode: core.js is loaded as a module script, which
     // rejects the opaque response a no-cors fetch would cache — that broke
@@ -81,7 +76,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
+      keys
+        .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_VERSION)
+        .map((k) => caches.delete(k))
     );
     await self.clients.claim();
   })());
@@ -96,13 +93,18 @@ self.addEventListener('fetch', (event) => {
 
   if (sameOrigin) {
     // Cache-first for the app shell.
-    event.respondWith((async () => {
+    let cacheWrite = Promise.resolve();
+    const response = (async () => {
       const cache = await caches.open(CACHE_VERSION);
       const hit = await cache.match(req);
       if (hit) return hit;
       try {
         const res = await fetch(req);
-        if (res && res.ok) cache.put(req, res.clone());
+        if (res && res.ok) {
+          cacheWrite = cache.put(req, res.clone()).catch((cacheErr) => {
+            console.warn('bunnysplit sw: same-origin cache write failed', cacheErr);
+          });
+        }
         return res;
       } catch (err) {
         // Last-ditch: serve index.html for navigation requests so the
@@ -114,17 +116,22 @@ self.addEventListener('fetch', (event) => {
         }
         throw err;
       }
-    })());
+    })();
+    event.respondWith(response);
+    event.waitUntil(response.then(() => cacheWrite, () => undefined));
     return;
   }
 
   // Cross-origin (CDN, fonts) — network-first, fall back to cache.
-  event.respondWith((async () => {
+  let cacheWrite = Promise.resolve();
+  const response = (async () => {
     const cache = await caches.open(CACHE_VERSION);
     try {
       const res = await fetch(req);
       if (res && (res.ok || res.type === 'opaque')) {
-        cache.put(req, res.clone());
+        cacheWrite = cache.put(req, res.clone()).catch((cacheErr) => {
+          console.warn('bunnysplit sw: cross-origin cache write failed', cacheErr);
+        });
       }
       return res;
     } catch (err) {
@@ -132,5 +139,7 @@ self.addEventListener('fetch', (event) => {
       if (hit) return hit;
       throw err;
     }
-  })());
+  })();
+  event.respondWith(response);
+  event.waitUntil(response.then(() => cacheWrite, () => undefined));
 });

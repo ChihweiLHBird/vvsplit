@@ -1,2 +1,46 @@
-pulumi>=3.0,<4.0
-pulumi-cloudflare>=6.17,<7.0
+# Linux x86_64 / CPython 3.14 deployment lock.
+# Regenerate from requirements.in using the command documented there.
+--only-binary=:all:
+
+debugpy==1.8.21 \
+    --hash=sha256:3d6922439bf33fd38a3e2c447869ebc7b97da5cd3d329ff1ef9bc06c4903437e
+dill==0.4.1 \
+    --hash=sha256:1e1ce33e978ae97fcfcff5638477032b801c46c7c65cf717f95fbc2248f79a9d
+googleapis-common-protos==1.75.0 \
+    --hash=sha256:961ed60399c457ceb0ee8f285a84c870aabc9c6a832b9d37bb281b5bebde43ed
+grpcio==1.81.0 \
+    --hash=sha256:c4fe218c5a35e1d87a5a26544237f1fa41dfd9cbd3c856b0810a30061f8b0aaf
+opentelemetry-api==1.42.1 \
+    --hash=sha256:51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714
+opentelemetry-exporter-otlp-proto-common==1.42.1 \
+    --hash=sha256:f48d395ab815b444da118868977e9798ea354c25737d5cf39578ae894011c140
+opentelemetry-exporter-otlp-proto-grpc==1.42.1 \
+    --hash=sha256:0ae1177e2038b18a929b3098215243631ef91136cba26b7e2b12790ceb7e87cc
+opentelemetry-instrumentation==0.63b1 \
+    --hash=sha256:f1986716d52cc316ea5f60189098726a9071d8ecc0eee96c9ed110be08bade9c
+opentelemetry-instrumentation-grpc==0.63b1 \
+    --hash=sha256:40d30a2c5e97f90a28a8c4e688e368b4dcacc7654d358489cea92744311ff8d9
+opentelemetry-proto==1.42.1 \
+    --hash=sha256:dedb74cba2886c59c7789b227a7a670613025a07489040050aedff6e5c0fb43c
+opentelemetry-sdk==1.42.1 \
+    --hash=sha256:083cd4bbfaa5aa7b5a9e552430d9951219967cfb27aa61feb13a77aba1fc839d
+opentelemetry-semantic-conventions==0.63b1 \
+    --hash=sha256:dfe5ef4dee82586b746f522b818ceb298d00b3d59f660042bd79404bff8d0682
+packaging==26.2 \
+    --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
+parver==1.0 \
+    --hash=sha256:ba201193c651d5d4de3761ee2709a31fb451280271325607ce1632653617a43e
+protobuf==6.33.6 \
+    --hash=sha256:e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593
+pulumi==3.244.0 \
+    --hash=sha256:ba365c133914043b7848906db7ac46b1fb92b632c77f09c838eca272501f9f0c
+pulumi-cloudflare==6.17.0 \
+    --hash=sha256:eb82562d697e06ee09405a9d77675a7bf8652c39e66f6a9bde99b73b21596690
+pyyaml==6.0.3 \
+    --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
+semver==3.0.4 \
+    --hash=sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746
+typing-extensions==4.15.0 \
+    --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
+wrapt==2.2.1 \
+    --hash=sha256:b9cf53ba90717db2e292401de290776c498d4bbfb0d4a559ca2895db8b9dcb5c
