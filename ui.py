@@ -156,7 +156,7 @@ def _safe(name, fn):
     try:
         fn()
     except Exception as e:
-        window.console.warn("vvsplit: " + name + " render failed: " + str(e))
+        window.console.warn("bunnysplit: " + name + " render failed: " + str(e))
 
 
 def render_all():
@@ -171,12 +171,12 @@ def render_all():
     try:
         totals = per_person_totals(_state)
     except Exception as e:
-        window.console.warn("vvsplit: totals failed: " + str(e))
+        window.console.warn("bunnysplit: totals failed: " + str(e))
         totals = {}
     try:
         transfers = settle_up(_state)
     except Exception as e:
-        window.console.warn("vvsplit: settle-up failed: " + str(e))
+        window.console.warn("bunnysplit: settle-up failed: " + str(e))
         transfers = []
 
     _safe("people", lambda: _render_people(paid))
@@ -496,7 +496,7 @@ def _persist_and_render():
         _storage.save(_state)
         _set_save_status(True)
     except Exception as e:
-        window.console.warn("vvsplit: could not save: " + str(e))
+        window.console.warn("bunnysplit: could not save: " + str(e))
         _set_save_status(False, str(e))
     render_all()
 
@@ -639,14 +639,14 @@ def _register_service_worker():
     try:
         promise = sw.register("./sw.js")
     except Exception as e:
-        window.console.warn("vvsplit: sw register threw: " + str(e))
+        window.console.warn("bunnysplit: sw register threw: " + str(e))
         return
 
     def _ok(_reg):
-        window.console.log("vvsplit: service worker registered")
+        window.console.log("bunnysplit: service worker registered")
 
     def _err(e):
-        window.console.warn("vvsplit: service worker failed: " + str(e))
+        window.console.warn("bunnysplit: service worker failed: " + str(e))
 
     try:
         promise.then(create_proxy(_ok), create_proxy(_err))

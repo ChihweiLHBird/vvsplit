@@ -1,5 +1,5 @@
-name: vvsplit
-description: vvsplit — Cloudflare Worker (static assets), Pulumi + Python
+name: bunnysplit
+description: bunnysplit — Cloudflare Worker (static assets), Pulumi + Python
 runtime:
   name: python
   options:

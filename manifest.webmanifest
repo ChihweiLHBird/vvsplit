@@ -1,10 +1,10 @@
 {
-  "name": "vvsplit",
-  "short_name": "vvsplit",
+  "name": "bunnysplit",
+  "short_name": "bunnysplit",
   "description": "Split bills fairly. Add people, log items, settle up — all local.",
   "start_url": "./index.html",
   "scope": "./",
-  "id": "/vvsplit/",
+  "id": "/bunnysplit/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "any",

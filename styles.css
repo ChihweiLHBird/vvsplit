@@ -1,4 +1,4 @@
-/* vvsplit — Workspace design.
+/* bunnysplit — Workspace design.
    Stripe-flavored: Inter, indigo accent, soft surfaces, generous space.
    PyScript-only (no JS): chip toggle and uneven-mode weight visibility
    are driven by CSS :has() against the form's radios/checkboxes. */

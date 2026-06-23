@@ -1,4 +1,4 @@
-// vvsplit service worker — the only JavaScript in this project.
+// bunnysplit service worker — the only JavaScript in this project.
 //
 // Why it exists: browsers only accept .js for service workers; PyScript
 // has no equivalent. Scope is intentionally cache plumbing only — no app
@@ -16,7 +16,7 @@
 //
 // To force a refresh after editing static files: bump CACHE_VERSION.
 
-const CACHE_VERSION = 'vvsplit-v6';
+const CACHE_VERSION = 'bunnysplit-v6';
 
 // App shell — everything required for a cold-from-cache boot. Keep this
 // in sync with files referenced by index.html / pyscript.toml.
@@ -62,7 +62,7 @@ self.addEventListener('install', (event) => {
       .map((r, i) => (r.status === 'rejected' ? APP_SHELL[i] : null))
       .filter(Boolean);
     if (failed.length) {
-      console.warn('vvsplit sw: failed to precache', failed);
+      console.warn('bunnysplit sw: failed to precache', failed);
     }
     // Default (cors) mode: core.js is loaded as a module script, which
     // rejects the opaque response a no-cors fetch would cache — that broke

@@ -6,7 +6,7 @@ from pyscript import window
 
 from splitcore.model import AppState
 
-KEY = "vvsplit"
+KEY = "bunnysplit"
 
 
 def load():
@@ -16,14 +16,14 @@ def load():
     try:
         raw = window.localStorage.getItem(KEY)
     except Exception as e:
-        window.console.warn("vvsplit: localStorage unavailable: " + str(e))
+        window.console.warn("bunnysplit: localStorage unavailable: " + str(e))
         return AppState()
     if raw is None:
         return AppState()
     try:
         return AppState.from_dict(json.loads(raw))
     except Exception as e:  # corrupt data: surface it, don't silently mask
-        window.console.warn("vvsplit: ignoring corrupt saved state: " + str(e))
+        window.console.warn("bunnysplit: ignoring corrupt saved state: " + str(e))
         # Stash the bad blob so the next save() doesn't destroy data the
         # user might still recover by hand.
         try:

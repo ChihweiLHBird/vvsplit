@@ -44,7 +44,7 @@ jobs:
       # Encrypts secrets in Pulumi state.
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       # DIY backend (Linode); pulumi reads this natively, no `pulumi login`.
-      PULUMI_BACKEND_URL: s3://${{ vars.PULUMI_STATE_BUCKET || 'vvsplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1
+      PULUMI_BACKEND_URL: s3://${{ vars.PULUMI_STATE_BUCKET || 'bunnysplit-pulumi-state' }}?endpoint=${{ vars.PULUMI_STATE_ENDPOINT }}&region=us-east-1
     steps:
       - uses: actions/checkout@v6
 
@@ -57,7 +57,7 @@ jobs:
 
       - name: Stamp CACHE_VERSION with commit SHA
         run: |
-          sed -i "s|const CACHE_VERSION = '.*';|const CACHE_VERSION = 'vvsplit-${GITHUB_SHA::8}';|" dist/sw.js
+          sed -i "s|const CACHE_VERSION = '.*';|const CACHE_VERSION = 'bunnysplit-${GITHUB_SHA::8}';|" dist/sw.js
           grep -n CACHE_VERSION dist/sw.js
 
       # The action installs the Pulumi CLI itself (no dependency on the

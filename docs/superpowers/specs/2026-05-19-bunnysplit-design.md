@@ -1,11 +1,11 @@
-# vvsplit — Design Spec
+# bunnysplit — Design Spec
 
 **Date:** 2026-05-19
 **Status:** Approved (design), pending spec review
 
 ## Summary
 
-`vvsplit` is a bill-splitting web app built entirely as static files using
+`bunnysplit` is a bill-splitting web app built entirely as static files using
 **PyScript with the MicroPython runtime**. No backend, no build step, no
 JavaScript written by hand. Users maintain a roster of people and add bill
 items incrementally; each item records who paid, which subset of people it is
@@ -36,7 +36,7 @@ per-person totals owed and a greedy settle-up plan (who pays whom).
 ## Architecture & File Layout
 
 ```
-vvsplit/
+bunnysplit/
 ├── index.html          # loads PyScript + MicroPython, app shell markup
 ├── pyscript.toml        # runtime=micropython, lists .py files to load
 ├── styles.css           # minimal styling
@@ -96,11 +96,11 @@ Pure functions, no DOM, fully unit-tested.
 
 ## Persistence (`storage.py`)
 
-- `load() -> AppState`: read `localStorage["vvsplit"]`, JSON-decode,
+- `load() -> AppState`: read `localStorage["bunnysplit"]`, JSON-decode,
   `AppState.from_dict`. If missing or corrupt: return a fresh empty
   `AppState` and log a clear message to the browser console (corruption is
   surfaced, not silently masked).
-- `save(state)`: `AppState.to_dict` -> JSON -> `localStorage["vvsplit"]`.
+- `save(state)`: `AppState.to_dict` -> JSON -> `localStorage["bunnysplit"]`.
   Called after every successful state mutation.
 
 ## UI & Data Flow (`ui.py`, `main.py`)

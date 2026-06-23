@@ -4,7 +4,7 @@ Date: 2026-05-24
 
 ## Scope
 
-Reviewed the current `main.py`, `ui.py`, `storage.py`, `splitcore/`, `tests/`, `index.html`, `styles.css`, `sw.js`, `manifest.webmanifest`, and `docs/superpowers/specs/2026-05-19-vvsplit-design.md`.
+Reviewed the current `main.py`, `ui.py`, `storage.py`, `splitcore/`, `tests/`, `index.html`, `styles.css`, `sw.js`, `manifest.webmanifest`, and `docs/superpowers/specs/2026-05-19-bunnysplit-design.md`.
 
 No repo-wide review guideline file such as `AGENTS.md`, `CLAUDE.md`, or `CONTRIBUTING.md` was present at the project root, so this review used the checked-in design spec plus the current code and tests as the main source of truth.
 

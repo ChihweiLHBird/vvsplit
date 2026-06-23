@@ -2,7 +2,7 @@
 
 ## Fast Start
 
-- `vvsplit` is a static PyScript + MicroPython app. There is no backend, no app bundler, and no hand-written app JavaScript except `sw.js`.
+- `bunnysplit` is a static PyScript + MicroPython app. There is no backend, no app bundler, and no hand-written app JavaScript except `sw.js`.
 - Start with executable sources of truth: `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, `tests/test_calc.py`, `scripts/stage-assets.sh`, `pyscript.toml`.
 - `CLAUDE.md` currently duplicates this file; keep the two aligned if you update repo instructions.
 
@@ -20,7 +20,7 @@
 - Keep `splitcore/model.py` on plain classes, not dataclasses, to preserve CPython/MicroPython behavior.
 - In `ui.py`, build user-visible DOM with `createElement` plus `textContent`; avoid `innerHTML` for any user-controlled content.
 - UI rerenders create JS proxies via `create_proxy`; if you add render-time handlers, keep them tracked in `_render_proxies` so rerenders do not leak proxies.
-- `storage.load()` treats `localStorage` errors and corrupt JSON as recoverable and preserves bad payloads under `vvsplit:corrupt`; keep that behavior instead of failing startup.
+- `storage.load()` treats `localStorage` errors and corrupt JSON as recoverable and preserves bad payloads under `bunnysplit:corrupt`; keep that behavior instead of failing startup.
 - `sw.js` is intentionally cache plumbing only. Do not move app logic into it.
 
 ## Validation

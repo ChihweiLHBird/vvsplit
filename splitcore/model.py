@@ -1,4 +1,4 @@
-"""Data model for vvsplit.
+"""Data model for bunnysplit.
 
 Plain classes (no dataclasses) so this runs identically under CPython and
 MicroPython. Money is integer cents everywhere; formatting happens in the UI.
@@ -19,7 +19,7 @@ def _warn_skip(kind, exc):
     # Surface dropped records so silent data loss / dev-time API breaks
     # are visible. PyScript routes stderr to the browser console.
     try:
-        print("vvsplit: skipped malformed " + kind + " record: " + str(exc),
+        print("bunnysplit: skipped malformed " + kind + " record: " + str(exc),
               file=sys.stderr)
     except Exception:
         pass

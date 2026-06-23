@@ -49,4 +49,4 @@ infra/venv/
 # Built static-asset tree staged by scripts/stage-assets.sh for the deploy.
 /dist/
 # Design handoff archive — integrated into index.html / styles.css.
-vvsplit.zip
+bunnysplit.zip

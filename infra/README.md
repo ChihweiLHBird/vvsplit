@@ -1,4 +1,4 @@
-# vvsplit infra (Pulumi + Python)
+# bunnysplit infra (Pulumi + Python)
 
 The [`pulumi-cloudflare`](https://www.pulumi.com/registry/packages/cloudflare/)
 provider (bridged from the Cloudflare v5 Terraform provider) uploads the
@@ -9,14 +9,14 @@ app, Linode holds the state.
 
 ## What this manages
 
-- `WorkersScript` "vvsplit" — an **assets-only** Worker (no Worker JS) serving
+- `WorkersScript` "bunnysplit" — an **assets-only** Worker (no Worker JS) serving
   the static site from `../dist`.
 
 ## One-time bootstrap
 
 ### 1. Create a Linode Object Storage bucket
 
-Cloud Manager → Object Storage → Create Bucket, e.g. `vvsplit-pulumi-state`.
+Cloud Manager → Object Storage → Create Bucket, e.g. `bunnysplit-pulumi-state`.
 Note its **cluster endpoint**, `https://<cluster-id>.linodeobjects.com`
 (e.g. `us-southeast-1.linodeobjects.com`, `us-ord-1.linodeobjects.com`).
 
@@ -44,7 +44,7 @@ export PULUMI_CONFIG_PASSPHRASE=<passphrase>  # encrypts secrets in state
 ### 5. Point Pulumi at the Linode backend, create the stack
 
 ```bash
-pulumi login 's3://vvsplit-pulumi-state?endpoint=<cluster-id>.linodeobjects.com&region=us-east-1'
+pulumi login 's3://bunnysplit-pulumi-state?endpoint=<cluster-id>.linodeobjects.com&region=us-east-1'
 cd infra
 pulumi stack init production
 ```
@@ -64,7 +64,7 @@ cd infra && pulumi up             # creates venv, installs deps, deploys
 ```
 
 Pulumi auto-creates `infra/venv`, installs `requirements.txt`, then deploys.
-The Worker serves at `https://vvsplit.<account-subdomain>.workers.dev`.
+The Worker serves at `https://bunnysplit.<account-subdomain>.workers.dev`.
 
 ## Day-to-day
 
@@ -105,7 +105,7 @@ no secrets) is called by two workflows:
 | Variable | For |
 |---|---|
 | `PULUMI_STATE_ENDPOINT` | `<cluster-id>.linodeobjects.com` |
-| `PULUMI_STATE_BUCKET` | State bucket name (default `vvsplit-pulumi-state`). |
+| `PULUMI_STATE_BUCKET` | State bucket name (default `bunnysplit-pulumi-state`). |
 
 ## State backend (Linode Object Storage)
 
@@ -114,7 +114,7 @@ backend. `region=us-east-1` is required. Addressing style: the AWS SDK v2
 rewrites to virtual-hosted (`<bucket>.<endpoint>`) when path-style is off
 (`s3ForcePathStyle` omitted), `hostname_immutable` is unset, and the bucket
 name is host-compatible — so this config serves state at
-`vvsplit-pulumi-state.<cluster>.linodeobjects.com` (needs a dot-free bucket
+`bunnysplit-pulumi-state.<cluster>.linodeobjects.com` (needs a dot-free bucket
 name to fit Linode's `*.<cluster>` TLS wildcard). Add `s3ForcePathStyle=true`
 to force path-style (`<endpoint>/<bucket>/<key>`) instead. The `s3://…` login
 string looks the same either way; confirm the real style in `pulumi --debug`
@@ -125,7 +125,7 @@ the AWS SDK's default request checksums — set
 Keep the state bucket **private** (the default). State holds the account id and
 Worker metadata, plus any Pulumi secrets (encrypted via the passphrase).
 
-## Custom domain (e.g. vvsplit.zliang.me)
+## Custom domain (e.g. bunnysplit.zliang.me)
 
 The program creates a `cloudflare.WorkersCustomDomain` when `CUSTOM_DOMAIN` is
 set (Cloudflare auto-creates the DNS record + TLS cert; a subdomain works the
@@ -137,7 +137,7 @@ same as an apex). To enable it:
    **Zone → DNS → Edit**) for that zone, on top of Workers Scripts:Edit.
 4. Set config — locally as env, in CI as repo **variables**:
    ```bash
-   export CUSTOM_DOMAIN=vvsplit.zliang.me
+   export CUSTOM_DOMAIN=bunnysplit.zliang.me
    export CLOUDFLARE_ZONE_ID=<zliang.me zone id>
    ```
    CI: add `CUSTOM_DOMAIN` as a repo **variable** and `CLOUDFLARE_ZONE_ID` as
