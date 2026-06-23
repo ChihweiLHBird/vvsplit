@@ -167,7 +167,7 @@ The resulting `dist/` directory holds the complete static application. Because i
 - Netlify
 - Vercel
 - GitHub Pages
-- Cloudflare Pages
+- Cloudflare Pages/Workers
 - AWS S3 (standalone or fronted by CloudFront)
 - Firebase Hosting
 - Render
