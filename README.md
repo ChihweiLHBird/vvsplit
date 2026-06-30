@@ -6,7 +6,7 @@ Split bills fairly. Add people, log items, settle up — **all local**.
 
 A privacy-first, zero-backend bill splitter that runs entirely in your browser using [PyScript](https://pyscript.net/) + MicroPython. No accounts, no servers — your bill data never leaves your device.
 
-![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
+![License: CCAI-1.0](https://img.shields.io/badge/license-CCAI--1.0-blue.svg)
 ![Tests](https://img.shields.io/badge/tests-54%20passing-success)
 ![Python](https://img.shields.io/badge/python-3.x-blue)
 
@@ -207,7 +207,9 @@ If you host the app elsewhere, you generally only need the contents of `dist/` �
 
 ## License
 
-AGPL-3.0. See [LICENSE.md](LICENSE.md).
+CCAI License v1.0 (Contextual Copyleft AI). See [LICENSE.txt](LICENSE.txt).
+
+A copyleft license that extends to models, datasets, and systems trained on this code or its outputs. It supports open-source AI and pushes back against closed labs that train on communal data but withhold their results.
 
 ---
 
