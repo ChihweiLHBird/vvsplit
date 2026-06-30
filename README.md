@@ -1,5 +1,7 @@
 # bunnysplit
 
+Maintainer's deployed version: https://bunnysplit.zliang.me/
+
 Split bills fairly. Add people, log items, settle up — **all local**.
 
 A privacy-first, zero-backend bill splitter that runs entirely in your browser using [PyScript](https://pyscript.net/) + MicroPython. No accounts, no servers — your bill data never leaves your device.
